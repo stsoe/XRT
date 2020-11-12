@@ -66,10 +66,10 @@ endif()
 
 # Signing xclbin images currently is not support on windows
 if(NOT WIN32)
-  target_link_libraries(${XCLBINUTIL_NAME} crypto)
+  target_link_libraries(${XCLBINUTIL_NAME} PRIVATE crypto)
 endif()
 
-target_link_libraries(${XCLBINUTIL_NAME} ${Boost_LIBRARIES} )
+target_link_libraries(${XCLBINUTIL_NAME} PRIVATE ${Boost_LIBRARIES} )
 
 install (TARGETS ${XCLBINUTIL_NAME} RUNTIME DESTINATION ${XRT_INSTALL_UNWRAPPED_DIR})
 install (PROGRAMS ${XRT_LOADER_SCRIPTS} DESTINATION ${XRT_INSTALL_BIN_DIR})
@@ -112,7 +112,7 @@ if (GTEST_FOUND)
       target_compile_options(${UNIT_TEST_NAME} PRIVATE /MT)
     endif()
   else()
-    target_link_libraries(xclbintest ${Boost_LIBRARIES} ${GTEST_BOTH_LIBRARIES} pthread crypto)
+    target_link_libraries(xclbintest PRIVATE ${Boost_LIBRARIES} ${GTEST_BOTH_LIBRARIES} pthread crypto)
   endif()
 
   message(STATUS "Configuring CMake to run unit test after building")
