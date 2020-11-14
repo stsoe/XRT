@@ -1,0 +1,22 @@
+name: XRT CI
+
+on:
+  push:
+    branches: [ github_actions ]
+  pull_request:
+    branches: [ github_actions ]
+    
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        ref: github_actions
+    - name: configure
+      run: ./src/runtime_src/tools/scripts/xrtdeps.sh
+    - name: make
+      run: ./build/build.sh -opt
