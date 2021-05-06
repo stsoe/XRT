@@ -18,11 +18,12 @@ jobs:
     - name: Create compile_commands.json
       run: |
         cmake src -B build/Review -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+        echo "apt_packages=$(src/runtime_src/tools/script/xrtdeps.sh -docker -list)" >> $GITHUB_ENV
 
     - name: Run clang-tidy
       uses: ZedThree/clang-tidy-review@v0.6.0
       id: review
       with:
         build_dir: build/Review
-        apt_packages: `src/runtime_src/tools/script/xrtdeps.sh -docker -list`
+        apt_packages: ${{ env.apt_packages }}
         pr: 4
