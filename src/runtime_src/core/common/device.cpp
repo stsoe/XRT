@@ -222,7 +222,7 @@ get_memory_type(size_t memidx) const
   auto mtype = static_cast<memory_type>(mem.m_type);
   if (mtype != memory_type::dram)
     return mtype;
-  return (strncmp(reinterpret_cast<const char*>(mem.m_tag), "HOST[0]", 7) == 0) 
+  return (strncmp(reinterpret_cast<const char*>(mem.m_tag), "HOST[0]", 6) == 0) 
     ? memory_type::host
     : mtype;
 }
