@@ -13,6 +13,7 @@ usage()
     echo "[-validate]                Validate that required packages are installed"
     echo "[-docker]                  Indicate that script is run within a docker container, disables select packages"
     echo "[-sysroot]                 Indicate that script is run to prepare sysroot, disables select packages"
+    echo "[-list]                    Return list of packages that would be installed, but don't install any"
 
     exit 1
 }
@@ -21,6 +22,7 @@ validate=0
 docker=0
 sysroot=0
 ds9=0
+list=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -41,6 +43,10 @@ while [ $# -gt 0 ]; do
             ;;
         -ds9)
             ds9=1
+            shift
+            ;;
+        -list)
+            list=1
             shift
             ;;
         *)
@@ -523,10 +529,28 @@ install()
     pip3 install -U pybind11
 }
 
+list()
+{
+    if [ $FLAVOR == "ubuntu" ] || [ $FLAVOR == "debian" ]; then
+        value=${UB_LIST[@]}
+    elif [ $FLAVOR == "centos" ] || [ $FLAVOR == "rhel" ] || [ $FLAVOR == "amzn" ]; then
+        value=${RH_LIST[@]}
+    elif [ $FLAVOR == "fedora" ]; then
+        value=${FD_LIST[@]}
+    elif [ $FLAVOR == "sles" ]; then
+        value=${SUSE_LIST[@]}
+    fi
+
+    echo ${value// /,}
+    
+}
+
 update_package_list
 
 if [ $validate == 1 ]; then
     validate
+elif [ $list == 1 ]; then
+    list
 else
     install
 fi

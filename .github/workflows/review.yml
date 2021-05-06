@@ -3,7 +3,7 @@ name: clang-tidy-review
 on: workflow_dispatch
     
 jobs:
-  build
+  review:
     runs-on: ubuntu-latest
     # Only run in my repo for now
     if: github.repository == 'stsoe/XRT'
