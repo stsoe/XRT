@@ -1,0 +1,28 @@
+name: clang-tidy-review
+
+on: workflow_dispatch
+    
+jobs:
+  build
+    runs-on: ubuntu-latest
+    # Only run in my repo for now
+    if: github.repository == 'stsoe/XRT'
+    steps:
+    - name: Checkout XRT
+      uses: actions/checkout@v2
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo src/runtime_src/tools/scripts/xrtdeps.sh
+        
+    - name: Create compile_commands.json
+      run: |
+        cmake src -B build/Review -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+
+    - name: Run clang-tidy
+      uses: ZedThree/clang-tidy-review@v0.6.0
+      id: review
+      with:
+        build_dir: build/Review
+        apt_packages: `src/runtime_src/tools/script/xrtdeps.sh -docker -list`
+        pr: 4
