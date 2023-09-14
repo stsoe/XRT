@@ -112,11 +112,27 @@ xilinx_xrt()
 }
 
 static bfs::path
+xclbin_repo_path()
+{
+  // Get repo path from ini file if any
+  auto repo = xrt_core::config::get_xclbin_repo();
+  if (!repo.empty())
+    return repo;
+
+  return xrt_core::detail::xclbin_repo_path();
+}
+
+static bfs::path
 xclbin_path(const std::string& xclbin)
 {
-  bfs::path xpath(xclbin);
+  // If the specified path is an absolute path then the function
+  // returns this path or throws if file does not exist.  If the path
+  // is relative, or just a plain file name, then the function
+  // prepends the absolute path of a platform specific xclbin
+  // repository that contains the specified file.
+  bfs::path xpath{xclbin};
   if (!xpath.is_absolute())
-    xpath = xrt_core::detail::xclbin_path(xclbin);
+    xpath = xclbin_repo_path() / xclbin;
   
   if (bfs::exists(xpath) && bfs::is_regular_file(xpath))
     return xpath;
@@ -248,6 +264,12 @@ std::string
 xclbin_path(const std::string& xclbin_name)
 {
   return ::xclbin_path(xclbin_name).string();
+}
+
+std::string
+xclbin_repo_path()
+{
+  return ::xclbin_repo_path().string();
 }
 
 } // environment

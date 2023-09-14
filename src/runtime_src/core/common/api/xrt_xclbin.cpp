@@ -18,7 +18,7 @@
 
 // This file implements XRT xclbin APIs as declared in
 // core/include/experimental/xrt_xclbin.h
-#define XCL_DRIVER_DLL_EXPORT  // exporting xrt_xclbin.h
+#define XRT_API_SOURCE         // exporting xrt_version.h
 #define XRT_CORE_COMMON_SOURCE // in same dll as core_common
 #include "core/include/experimental/xrt_xclbin.h"
 
@@ -931,6 +931,109 @@ public:
   }
 };
 
+// class xclbin_repository::iterator_impl - implementation of iterator
+//
+// Iterator over the xclbin files in a repository.  The implementation
+// acts as an opaque handle to exposed xrt::xclbin_repository::iterator.
+class xclbin_repository::iterator_impl
+{
+  std::vector<std::string>::const_iterator m_itr;
+public:
+  iterator_impl(std::vector<std::string>::const_iterator itr)
+    : m_itr(itr)
+  {}
+
+  iterator_impl(const iterator_impl& rhs)
+    : m_itr(rhs.m_itr)
+  {}
+
+  iterator_impl&
+  operator++()
+  {
+    ++m_itr;
+    return *this;
+  }
+
+  bool
+  operator==(const iterator_impl& rhs) const
+  {
+    return m_itr == rhs.m_itr;
+  }
+
+  xrt::xclbin
+  get_xclbin() const
+  {
+    return xrt::xclbin{*m_itr};
+  }
+
+  std::string
+  get_xclbin_path() const
+  {
+    return *m_itr;
+  }
+};
+
+// class xclbin_repository_impl - implementation of xclbin_repository
+//
+// Handle class for xrt::xclbin_repository.  The implementation is
+// exposing xclbin files in a directory. The repository can be iterated
+// over to get the indivdual xclbins either as xrt::xclbin objects or
+// as full paths the xclbin files.
+//
+// The implementaton may be extended later to support multiple
+// directories and maybe filtering of the xclbins based on to be
+// defined criteria.
+class xclbin_repository_impl
+{
+  std::string m_path;
+  std::vector<std::string> m_xclbin_paths;
+
+  static std::string
+  get_xclbin_repository_path()
+  {
+    return xrt_core::environment::xclbin_repo_path();
+  }
+
+  static std::vector<std::string>
+  get_xclbin_paths(const std::string& path)
+  {
+    namespace bfs = boost::filesystem;
+    std::vector<std::string> xclbin_paths;
+    // Iterate over all files in the directory and collect all xclbin files
+    bfs::directory_iterator p{path};
+    bfs::directory_iterator end;
+    for (; p != end; ++p) {
+      if (bfs::is_regular_file(*p) && p->path().extension() == ".xclbin")
+        xclbin_paths.push_back(p->path().string());
+    }
+    
+    return xclbin_paths;
+  }
+
+public:
+  xclbin_repository_impl()
+    : m_path(get_xclbin_repository_path())
+    , m_xclbin_paths(get_xclbin_paths(m_path))
+  {}
+  
+  xclbin_repository_impl(const std::string& path)
+    : m_path(path)
+    , m_xclbin_paths(get_xclbin_paths(m_path))
+  {}
+
+  xclbin_repository::iterator
+  begin() const
+  {
+    return std::make_shared<xclbin_repository::iterator_impl>(m_xclbin_paths.begin());
+  }
+
+  xclbin_repository::iterator
+  end() const
+  {
+    return std::make_shared<xclbin_repository::iterator_impl>(m_xclbin_paths.end());
+  }
+};
+
 } // xrt
 
 ////////////////////////////////////////////////////////////////
@@ -1018,7 +1121,6 @@ get_fpga_device_name() const
 {
   return handle ? handle->get_fpga_device_name() : "";
 }
-
 
 uuid
 xclbin::
@@ -1354,6 +1456,87 @@ get_operations_per_cycle() const
   return handle->m_aiep->operations_per_cycle;
 }
 
+////////////////////////////////////////////////////////////////
+// xrt::xclbin_repository
+////////////////////////////////////////////////////////////////
+xclbin_repository::
+xclbin_repository()
+  : detail::pimpl<xclbin_repository_impl>(std::make_shared<xclbin_repository_impl>())
+{}
+  
+xclbin_repository::
+xclbin_repository(const std::string& path)
+  : detail::pimpl<xclbin_repository_impl>(std::make_shared<xclbin_repository_impl>(path))
+{}
+
+xclbin_repository::iterator
+xclbin_repository::
+begin() const
+{
+  return handle->begin();
+}
+
+xclbin_repository::iterator
+xclbin_repository::
+end() const
+{
+  return handle->end();
+}
+
+////////////////////////////////////////////////////////////////
+// xrt::xclbin_repository::iterator
+////////////////////////////////////////////////////////////////
+xclbin_repository::iterator::
+iterator(const xclbin_repository::iterator& rhs)
+  : detail::pimpl<xclbin_repository::iterator_impl>
+  (std::make_shared<xclbin_repository::iterator_impl>(*(rhs.get_handle().get())))
+{}
+
+xclbin_repository::iterator&
+xclbin_repository::iterator::
+operator++()
+{
+  ++(*handle);
+  return *this;
+}
+
+xclbin_repository::iterator
+xclbin_repository::iterator::
+operator++(int)
+{
+  iterator tmp(*this);
+  ++(*this);
+  return tmp;
+}
+
+bool
+xclbin_repository::iterator::
+operator==(const iterator& rhs) const
+{
+  return (*handle) == (*rhs.handle);
+}
+
+xclbin_repository::iterator::value_type
+xclbin_repository::iterator::
+operator*() const
+{
+  return handle->get_xclbin();
+}
+
+xclbin_repository::iterator::value_type
+xclbin_repository::iterator::
+operator->() const
+{
+  return handle->get_xclbin();
+}
+
+std::string
+xclbin_repository::iterator::
+path() const
+{
+  return handle->get_xclbin_path();
+}
+  
 } // namespace xrt
 
 namespace {

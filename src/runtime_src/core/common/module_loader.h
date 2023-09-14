@@ -111,6 +111,14 @@ XRT_CORE_COMMON_EXPORT
 std::string
 xclbin_path(const std::string& xclbin_name);
 
+/**
+ * xclbin_repo_path() - Get path to xclbin repository
+ *
+ * Return: Full path to xclbin repository
+ */
+XRT_CORE_COMMON_EXPORT
+std::string
+xclbin_repo_path();
 } // environment
 
 } // end namespace xrt_core

@@ -250,16 +250,11 @@ xilinx_xrt()
 }
 
 bfs::path
-xclbin_path(const std::string& xclbin)
+xclbin_repo_path()
 {
   // For time being, xclbin repo is same as xilinx_xrt
   static auto repo = xilinx_xrt();
-  auto xpath = repo / xclbin;
-
-  if (!bfs::exists(xpath))
-    throw std::runtime_error("xclbin not found: " + xpath.string());
-
-  return xpath;
+  return repo;
 }
 
 } // xrt_core::detail

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
+#include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <stdexcept>
 #include <string>
@@ -18,9 +19,10 @@ xilinx_xrt()
 }
 
 bfs::path
-xclbin_path(const std::string& xclbin)
+xclbin_repo_path()
 {
-  throw std::runtime_error("xclbin repo path not yet implemented on Linux");
+  // current directory
+  return bfs::current_path();
 }
 
 } // xrt_core::detail
