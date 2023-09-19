@@ -99,11 +99,11 @@ xilinx_xrt();
  * @xclbin_name : A path relative or absolute to an xclbin file
  * Return: Full path the xclbin file
  *
- * If the specified path is an absolute path then the function returns
- * this path or throws if file does not exist.  If the path is
- * relative, or just a plain file name, then the function prepends the
- * absolute path of a platform specific xclbin repository that
- * contains the specified file.
+ * If the specified path is an absolute path then the function
+ * returns this path or throws if file does not exist.  If the path
+ * is relative, or just a plain file name, then the function checks
+ * first in current directory, then in the platform specific xclbin
+ * repository.
  *
  * The function throws if the file does not exist.
  */

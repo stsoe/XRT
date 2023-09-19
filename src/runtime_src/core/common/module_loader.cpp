@@ -127,15 +127,18 @@ xclbin_path(const std::string& xclbin)
 {
   // If the specified path is an absolute path then the function
   // returns this path or throws if file does not exist.  If the path
-  // is relative, or just a plain file name, then the function
-  // prepends the absolute path of a platform specific xclbin
-  // repository that contains the specified file.
+  // is relative, or just a plain file name, then the function checks
+  // first in current directory, then in the platform specific xclbin
+  // repository.
   bfs::path xpath{xclbin};
-  if (!xpath.is_absolute())
-    xpath = xclbin_repo_path() / xclbin;
-  
   if (bfs::exists(xpath) && bfs::is_regular_file(xpath))
     return xpath;
+  
+  if (!xpath.is_absolute()) {
+    xpath = xclbin_repo_path() / xclbin;
+    if (bfs::exists(xpath) && bfs::is_regular_file(xpath))
+      return xpath;
+  }
 
   throw std::runtime_error("No such xclbin '" + xpath.string() + "'");
 }
@@ -155,7 +158,6 @@ module_path(const std::string& module)
 
   return path;
 }
-
   
 static bfs::path
 shim_path()

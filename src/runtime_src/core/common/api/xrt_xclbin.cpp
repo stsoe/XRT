@@ -100,18 +100,7 @@ read_xclbin(const std::string& fnm)
   if (fnm.empty())
     throw std::runtime_error("No xclbin specified");
 
-  namespace bfs = boost::filesystem;
-  if (bfs::exists(fnm) && bfs::is_regular_file(fnm))
-    return read_file(fnm);
-
-  std::string path;
-  try {
-    path = xrt_core::environment::xclbin_path(fnm);
-  }
-  catch (const std::exception&) {
-    throw std::runtime_error("Failed to find xclbin '" + fnm);
-  }
-
+  auto path = xrt_core::environment::xclbin_path(fnm);
   return read_file(path);
 }
 
