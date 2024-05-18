@@ -66,7 +66,7 @@ R"(
     }]
   },{
     "validate": [{
-      "test": ["latency", "throughput", "df-bw", "tct-one-col", "tct-all-col", "gemm"]
+      "test": ["verify", "latency", "throughput", "df-bw", "tct-one-col", "tct-all-col", "gemm"]
     }]
   }]
 }]

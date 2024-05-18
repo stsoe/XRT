@@ -22,6 +22,11 @@ TestNPULatency::TestNPULatency()
   : TestRunner("latency", "Run end-to-end latency test")
 {}
 
+// For deprecated verify option
+TestNPULatency::TestNPULatency(const std::string& testname)
+  : TestRunner(testname, "Run deprecated test (end-to-end latency test)")
+{}
+
 boost::property_tree::ptree
 TestNPULatency::run(std::shared_ptr<xrt_core::device> dev)
 {

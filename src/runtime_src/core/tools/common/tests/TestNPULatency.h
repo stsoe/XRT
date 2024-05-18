@@ -13,6 +13,7 @@ class TestNPULatency : public TestRunner {
 
   public:
     TestNPULatency();
+    TestNPULatency(const std::string& testname);
 };
 
 #endif

@@ -108,7 +108,8 @@ std::vector<std::shared_ptr<TestRunner>> testSuite = {
   std::make_shared<TestTCTAllColumn>(),
   std::make_shared<TestGemm>(),
   std::make_shared<TestNPUThroughput>(),
-  std::make_shared<TestNPULatency>()
+  std::make_shared<TestNPULatency>(),
+  std::make_shared<TestNPULatency>("verify") // deprecated to be removed
 };
 
 /*
