@@ -222,6 +222,7 @@ protected:
   std::vector<std::shared_ptr<bo_impl>> clones;    // NOLINT local m2m clones if any
   std::shared_ptr<xrt_core::buffer_handle> handle; // NOLINT shim handle
   size_t size = 0;                                 // NOLINT size of buffer
+  std::atomic<size_t> map_count {0};               // NOLINT number of times mapped
   mutable uint64_t addr = no_addr;                 // NOLINT bo device address
   mutable uint32_t grpid = no_group;               // NOLINT memory group index
   mutable bo::flags flags = no_flags;              // NOLINT flags per bo properties
@@ -336,8 +337,10 @@ public:
   {
     if (sz + seek > size)
       throw xrt_core::error(-EINVAL,"attempting to write past buffer size");
-    auto hbuf = static_cast<char*>(get_hbuf()) + seek;
+    auto hbuf = static_cast<char*>(map()) + seek;
     std::memcpy(hbuf, src, sz);
+    // Preserve existing dtor unmap behavior, do not explicitly unmap
+    // unmap();
   }
 
   virtual void
@@ -345,8 +348,10 @@ public:
   {
     if (sz + skip > size)
       throw xrt_core::error(-EINVAL,"attempting to read past buffer size");
-    auto hbuf = static_cast<char*>(get_hbuf()) + skip;
+    auto hbuf = static_cast<char*>(map()) + skip;
     std::memcpy(dst, hbuf, sz);
+    // Preserve existing dtor unmap behavior, do not explicitly unmap
+    // unmap();
   }
 
   virtual void
@@ -411,11 +416,11 @@ public:
   void
   copy_through_host(const bo_impl* src, size_t sz, size_t src_offset, size_t dst_offset)
   {
-    auto src_hbuf = static_cast<const char*>(src->get_hbuf());
+    auto src_hbuf = static_cast<const char*>(const_cast<bo_impl*>(src)->map());
     if (!src_hbuf)
       throw xrt_core::system_error(EINVAL, "No host side buffer in source buffer");
 
-    auto dst_hbuf = static_cast<char*>(get_hbuf());
+    auto dst_hbuf = static_cast<char*>(map());
     if (!dst_hbuf)
       throw xrt_core::system_error(EINVAL, "No host side buffer in destination buffer");
 
@@ -428,6 +433,10 @@ public:
 
     // sync modified host buffer to device
     sync(XCL_BO_SYNC_BO_TO_DEVICE, sz, dst_offset);
+
+    // Preserve existing dtor unmap behavior, do not explicitly unmap
+    // src->unmap();
+    // unmap();
   }
 
   void
@@ -487,9 +496,31 @@ public:
     return flags;
   }
 
+  void*
+  map()
+  {
+    auto hbuf = do_map();
+    if (!hbuf)
+      return nullptr;
+
+    ++map_count;
+    return hbuf;
+  }
+
+  void
+  unmap()
+  {
+    if (map_count == 0 || --map_count)
+      return;
+    
+    do_unmap();
+  }
+
+  virtual void*  do_map()        { return nullptr; }
+  virtual void   do_unmap()      {}
+
   virtual size_t get_size()      const { return size;    }
   virtual size_t get_offset()    const { return 0;       }
-  virtual void*  get_hbuf()      const { return nullptr; }
   virtual bool   is_sub()        const { return false;   }
   virtual bool   is_imported()   const { return false;   }
 };
@@ -644,7 +675,7 @@ public:
   {}
 
   void*
-  get_hbuf() const override
+  do_map() override
   {
     return ubuf;
   }
@@ -666,7 +697,7 @@ public:
   {}
 
   void*
-  get_hbuf() const override
+  do_map() override
   {
     return hbuf.get();
   }
@@ -678,12 +709,11 @@ public:
 // is allocated in physical memory by kernel driver.
 class buffer_kbuf : public bo_impl
 {
-  void* hbuf;
+  void* hbuf = nullptr;
 
 public:
   buffer_kbuf(const device_type& dev, std::unique_ptr<xrt_core::buffer_handle> bhdl, size_t sz)
     : bo_impl(dev, std::move(bhdl), sz)
-    , hbuf(handle->map(xrt_core::buffer_handle::map_type::write))
   {}
 
   ~buffer_kbuf() override
@@ -691,7 +721,8 @@ public:
     // Imported BO can fail in xclUnmapBO if the exported BO has
     // already been unmapped or vice versa.
     try {
-      handle->unmap(hbuf);
+      if (hbuf)
+        handle->unmap(hbuf);
     }
     catch (...) {
     }
@@ -703,9 +734,20 @@ public:
   buffer_kbuf& operator=(buffer_kbuf&&) = delete;
 
   void*
-  get_hbuf() const override
+  do_map() override
   {
-    return hbuf;
+    return hbuf
+      ? hbuf
+      : (hbuf = handle->map(xrt_core::buffer_handle::map_type::write));
+  }
+
+  void
+  do_unmap() override
+  {
+    if (hbuf) {
+      handle->unmap(hbuf);
+      hbuf = nullptr;
+    }
   }
 };
 
@@ -717,7 +759,8 @@ public:
 // process (linux pidfd support required)
 class buffer_import : public bo_impl
 {
-  void* hbuf;
+  void* hbuf = nullptr;
+  bool no_hbuf = false;
 
 public:
   // buffer_import() - Import the buffer
@@ -726,14 +769,7 @@ public:
   // @ehdl:    export handle obtained by calling export_buffer
   buffer_import(const device_type& dev, export_handle ehdl)
     : bo_impl(dev, ehdl)
-  {
-    try {
-      hbuf = handle->map(xrt_core::buffer_handle::map_type::write);
-    }
-    catch (const std::exception&) {
-      hbuf = nullptr;
-    }
-  }
+  {}
 
   // buffer_import() - Import the buffer from another process
   //
@@ -745,30 +781,24 @@ public:
   // linux kernel.
   buffer_import(const device_type& dev, pid_type pid, export_handle ehdl)
     : bo_impl(dev, pid, ehdl)
-  {
-    try {
-      hbuf = handle->map(xrt_core::buffer_handle::map_type::write);
-    }
-    catch (const std::exception&) {
-      hbuf = nullptr;
-    }
-  }
+  {}
 
   ~buffer_import() override
   {
-    // Imported BO can fail in xclUnmapBO if the exported BO has
-    // already been unmapped or vice versa.
-    try {
-      handle->unmap(hbuf);
-    }
-    catch (...) {
-    }
+    do_unmap();
   }
 
   buffer_import(const buffer_import&) = delete;
   buffer_import(buffer_import&&) = delete;
   buffer_import& operator=(buffer_import&) = delete;
   buffer_import& operator=(buffer_import&&) = delete;
+
+  void
+  error_if_no_hbuf() const
+  {
+    if (no_hbuf)
+      throw xrt_core::system_error(std::errc::bad_address, "No host memory for imported buffer");
+  }
 
   bool
   is_imported() const override
@@ -777,11 +807,38 @@ public:
   }
 
   void*
-  get_hbuf() const override
+  do_map() override
+  {
+    if (hbuf)
+      return hbuf;
+
+    error_if_no_hbuf();
+
+    try {
+      hbuf = handle->map(xrt_core::buffer_handle::map_type::write);
+    }
+    catch (const std::exception&) {
+      no_hbuf = true;
+      error_if_no_hbuf();
+    }
+
+    return hbuf;
+  }
+
+  void
+  do_unmap() override
   {
     if (!hbuf)
-      throw xrt_core::system_error(std::errc::bad_address, "No host memory for imported buffer");
-    return hbuf;
+      return;
+
+    // Imported BO can fail in xclUnmapBO if the exported BO has
+    // already been unmapped or vice versa.
+    try {
+      handle->unmap(hbuf);
+      hbuf = nullptr;
+    }
+    catch (...) {
+    }
   }
 };
 
@@ -799,7 +856,7 @@ public:
   {}
 
   void*
-  get_hbuf() const override
+  do_map() override
   {
     throw xrt_core::error(-EINVAL, "device only buffer has no host buffer");
   }
@@ -843,9 +900,15 @@ public:
   {}
 
   void*
-  get_hbuf() const override
+  do_map() override
   {
-    return m_host_only.get_hbuf();
+    return m_host_only.map();
+  }
+
+  void
+  do_unmap()
+  {
+    m_host_only.unmap();
   }
 
   // sync is M2M copy between host and device bo
@@ -885,23 +948,33 @@ class buffer_sub : public bo_impl
 {
   std::shared_ptr<bo_impl> m_parent;  // participate in ownership of parent
   size_t m_offset;
-  void* m_hbuf;
+  void* m_hbuf = nullptr;
 
 public:
   buffer_sub(std::shared_ptr<bo_impl> par, size_t size, size_t off)
     : bo_impl(par.get(), size)
     , m_parent(std::move(par))
     , m_offset(off)
-    , m_hbuf(static_cast<char*>(m_parent->get_hbuf()) + m_offset)
   {
     if (size + m_offset > m_parent->get_size())
       throw xrt_core::error(-EINVAL, "sub buffer size and offset");
   }
 
   void*
-  get_hbuf() const override
+  do_map() override
   {
+    if (m_hbuf)
+      return m_hbuf;
+
+    m_hbuf = static_cast<char*>(m_parent->map()) + m_offset;
     return m_hbuf;
+  }
+
+  void
+  do_unmap() override
+  {
+    m_parent->unmap();
+    m_hbuf = nullptr;
   }
 
   bool
@@ -950,7 +1023,7 @@ public:
   }
 
   void*
-  get_hbuf() const override
+  do_map() override
   {
     throw xrt_core::error(std::errc::not_supported, "no host buffer access for xcl managed BOs");
   }
@@ -1511,7 +1584,16 @@ bo::
 map()
 {
   return xdp::native::profiling_wrapper("xrt::bo::map", [this]{
-    return handle->get_hbuf();
+    return handle->map();
+  });
+}
+
+void
+bo::
+unmap()
+{
+  return xdp::native::profiling_wrapper("xrt::bo::unmap", [this]{
+    return handle->unmap();
   });
 }
 
@@ -1907,7 +1989,7 @@ xrtBOMap(xrtBufferHandle bhdl)
 {
   try {
     return xdp::native::profiling_wrapper(__func__, [bhdl]{
-      return get_boh(bhdl)->get_hbuf();
+      return get_boh(bhdl)->map();
     });
   }
   catch (const xrt_core::error& ex) {

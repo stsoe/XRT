@@ -614,6 +614,24 @@ public:
   }
 
   /**
+   * unmap() - Unmap the host side buffer from application
+   *
+   * Unmap the contents of the buffer object from host memory.
+   *
+   * A buffer object can be mapped multiple times, but the same
+   * virtual buffer is returned each time.  The number of calls
+   * to map() is tracked so that the buffer is only unmapped when
+   * the same number of calls to unmap() have been made.
+   *
+   * If the buffer remains mapped when the buffer object is destructed,
+   * the buffer is automatically unmapped regardless of the number of
+   * calls to map().
+   */
+  XCL_DRIVER_DLLESPEC
+  void
+  unmap();
+
+  /**
    * write() - Copy-in user data to host backing storage of BO
    *
    * @param src
