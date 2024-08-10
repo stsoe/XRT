@@ -9,7 +9,7 @@ if(CMAKE_VERSION VERSION_LESS "3.18.0")
 elseif(DEFINED XRT_AIE_BUILD)
   message(WARNING "Edge Versal device, build of submodule aiebu disabled")
 else()
-  add_subdirectory(aiebu)
+#  add_subdirectory(aiebu)
 endif()
 
 add_library(core_common_library_objects OBJECT
