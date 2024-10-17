@@ -55,6 +55,7 @@ if (MSVC)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
   add_compile_options(
+    /MT$<$<CONFIG:Debug>:d>  # static linking with the CRT
     /Zc:__cplusplus
     /Zi           # generate pdb files even in release mode
     /sdl          # enable security checks
@@ -63,8 +64,8 @@ if (MSVC)
     /guard:cf     # enable compiler control guard feature (CFG) to prevent attackers from redirecting execution to unsafe locations
     )
   add_link_options(
-    /NODEFAULTLIB:libucrt.lib  # Hybrid CRT
-    /DEFAULTLIB:ucrt.lib       # Hybrid CRT
+    /NODEFAULTLIB:libucrt$<$<CONFIG:Debug>:d>.lib  # Hybrid CRT
+    /DEFAULTLIB:ucrt$<$<CONFIG:Debug>:d>.lib       # Hybrid CRT
     /DEBUG      # instruct linker to create debugging info
     /guard:cf   # enable linker control guard feature (CFG) to prevent attackers from redirecting execution to unsafe locations
     /CETCOMPAT  # enable Control-flow Enforcement Technology (CET) Shadow Stack mitigation
