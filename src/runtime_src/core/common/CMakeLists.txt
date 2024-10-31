@@ -12,7 +12,7 @@ else()
   message(WARNING "Edge device, build of submodule aiebu disabled")
 endif()
 
-add_library(core_common_library_objects OBJECT
+set(core_common_library_sources
   config_reader.cpp
   debug.cpp
   debug_ip.cpp
@@ -40,14 +40,25 @@ add_library(core_common_library_objects OBJECT
   xclbin_swemu.cpp
   )
 
+add_library(core_common_library_objects OBJECT ${core_common_library_sources})
 target_include_directories(core_common_library_objects
   PRIVATE
   ${XRT_SOURCE_DIR}/runtime_src
   )
-
 target_compile_definitions(core_common_library_objects
   PRIVATE
   XRT_VERSION_MAJOR="${XRT_VERSION_MAJOR}"
+  )
+
+add_library(core_common_library_static_objects OBJECT ${core_common_library_sources})
+target_include_directories(core_common_library_static_objects
+  PRIVATE
+  ${XRT_SOURCE_DIR}/runtime_src
+  )
+target_compile_definitions(core_common_library_static_objects
+  PRIVATE
+  XRT_VERSION_MAJOR="${XRT_VERSION_MAJOR}"
+  XRT_STATIC_BUILD
   )
 
 # The scheduler object files are for auto config of scheduler. These
@@ -67,8 +78,8 @@ add_library(xrt_coreutil SHARED
   )
 
 add_library(xrt_coreutil_static STATIC
-  $<TARGET_OBJECTS:core_common_library_objects>
-  $<TARGET_OBJECTS:core_common_api_library_objects>
+  $<TARGET_OBJECTS:core_common_library_static_objects>
+  $<TARGET_OBJECTS:core_common_api_library_static_objects>
   $<TARGET_OBJECTS:core_common_xdp_profile_objects>
   )
 

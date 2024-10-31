@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
-add_library(core_common_api_library_objects OBJECT
+set(core_common_api_library_sources
   context_mgr.cpp
   hw_queue.cpp
   native_profile.cpp
@@ -23,8 +23,17 @@ add_library(core_common_api_library_objects OBJECT
   aie/xrt_graph.cpp
   )
 
+add_library(core_common_api_library_objects OBJECT ${core_common_api_library_sources})
 target_include_directories(core_common_api_library_objects
   PRIVATE
   ${XRT_SOURCE_DIR}/runtime_src
   ${XRT_SOURCE_DIR}/runtime_src/core/common/elf
   )
+
+add_library(core_common_api_library_static_objects OBJECT ${core_common_api_library_sources})
+target_include_directories(core_common_api_library_static_objects
+  PRIVATE
+  ${XRT_SOURCE_DIR}/runtime_src
+  ${XRT_SOURCE_DIR}/runtime_src/core/common/elf
+  )
+target_compile_definitions(core_common_api_library_static_objects PRIVATE XRT_STATIC_BUILD)
