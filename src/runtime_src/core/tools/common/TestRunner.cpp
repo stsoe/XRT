@@ -134,11 +134,7 @@ TestRunner::runPyTestCase( const std::shared_ptr<xrt_core::device>& _dev, const 
   std::ostringstream os_stdout;
   std::ostringstream os_stderr;
   
-#ifdef XRT_INSTALL_PREFIX
-    #define XRT_TEST_CASE_DIR XRT_INSTALL_PREFIX "/xrt/test/"
-#else
-    #define XRT_TEST_CASE_DIR "/opt/xilinx/xrt/test/"
-#endif
+#define XRT_TEST_CASE_DIR "/opt/xilinx/xrt/test/"
 
   //Check if testcase is present
   std::string xrtTestCasePath = XRT_TEST_CASE_DIR + py;

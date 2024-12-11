@@ -177,13 +177,8 @@ struct xclbin_repo {
     const char *md5; //md5 of the xclbin metadata. should be the primary key of DB of the repo
     const char *path; //path to xclbin file
 };
-#ifdef XRT_INSTALL_PREFIX
-    #define VERIFY_XCLBIN_PATH XRT_INSTALL_PREFIX "/dsa/xilinx_u280_xdma_201910_1/test/verify.xclbin"
-    #define BANDWIDTH_XCLBIN_PATH XRT_INSTALL_PREFIX "/dsa/xilinx_u280_xdma_201910_1/test/bandwidth.xclbin"
-#else
-    #define VERIFY_XCLBIN_PATH "/opt/xilinx/dsa/xilinx_u280_xdma_201910_1/test/verify.xclbin"
-    #define BANDWIDTH_XCLBIN_PATH "/opt/xilinx/dsa/xilinx_u280_xdma_201910_1/test/bandwidth.xclbin"
-#endif
+#define VERIFY_XCLBIN_PATH "/opt/xilinx/dsa/xilinx_u280_xdma_201910_1/test/verify.xclbin"
+#define BANDWIDTH_XCLBIN_PATH "/opt/xilinx/dsa/xilinx_u280_xdma_201910_1/test/bandwidth.xclbin"
 static struct xclbin_repo repo[2] = {
     {
         .md5 = "d9662fc2a45422d5f7c80f57dae4c8db",

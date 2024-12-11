@@ -280,11 +280,8 @@ std::string
 searchLegacyXclbin(const uint16_t vendor, const std::string& dev_name,
                     boost::property_tree::ptree& _ptTest)
 {
-#ifdef XRT_INSTALL_PREFIX
-  #define DSA_DIR XRT_INSTALL_PREFIX "/dsa/"
-#else
-  #define DSA_DIR "/opt/xilinx/dsa/"
-#endif
+#define DSA_DIR "/opt/xilinx/dsa/"
+
   const std::string dsapath(DSA_DIR);
   const std::string xsapath(getXsaPath(vendor));
 
@@ -319,11 +316,7 @@ std::string
 searchSSV2Xclbin(const std::string& logic_uuid,
                              boost::property_tree::ptree& _ptTest)
 {
-#ifdef XRT_INSTALL_PREFIX
-  #define FW_DIR XRT_INSTALL_PREFIX "/firmware/"
-#else
-  #define FW_DIR "/opt/xilinx/firmware/"
-#endif
+#define FW_DIR "/opt/xilinx/firmware/"
   std::string formatted_fw_path(FW_DIR);
   std::filesystem::path fw_dir(formatted_fw_path);
   if (!std::filesystem::is_directory(fw_dir)) {

@@ -8,7 +8,7 @@ add_subdirectory(runner)
 if(CMAKE_VERSION VERSION_LESS "3.18.0")
   message(WARNING "CMake version is less than 3.18.0, build of submodule aiebu disabled")
 elseif (${XRT_NATIVE_BUILD} STREQUAL "yes")
-  add_subdirectory(aiebu)
+  xrt_add_subdirectory_disable_install_target(aiebu)
 else()
   message(WARNING "Edge device, build of submodule aiebu disabled")
 endif()
@@ -122,15 +122,18 @@ if (NOT WIN32)
   target_link_libraries(xrt_coreutil_static INTERFACE uuid dl rt pthread)
 endif()
 ################################################################
-
-install(TARGETS xrt_coreutil
-  EXPORT xrt-targets
-  LIBRARY DESTINATION ${XRT_INSTALL_LIB_DIR} ${XRT_NAMELINK_SKIP}
-  RUNTIME DESTINATION ${XRT_INSTALL_BIN_DIR}
-)
-
-install(TARGETS xrt_coreutil xrt_coreutil_static
-  EXPORT xrt-dev-targets
-  ARCHIVE DESTINATION ${XRT_INSTALL_LIB_DIR} COMPONENT ${XRT_DEV_COMPONENT}
-  LIBRARY DESTINATION ${XRT_INSTALL_LIB_DIR} COMPONENT ${XRT_DEV_COMPONENT} ${XRT_NAMELINK_ONLY}
-)
+if (XRT_BASE)
+  install(TARGETS xrt_coreutil xrt_coreutil_static
+    EXPORT xrt-targets
+    RUNTIME COMPONENT ${XRT_BASE_COMPONENT}
+    LIBRARY COMPONENT ${XRT_BASE_COMPONENT} NAMELINK_COMPONENT ${XRT_BASE_DEV_COMPONENT}
+    ARCHIVE COMPONENT ${XRT_BASE_DEV_COMPONENT})
+elseif(XRT_XRT)
+  install(TARGETS xrt_coreutil xrt_coreutil_static
+    EXPORT xrt-targets
+    RUNTIME DESTINATION ${XRT_INSTALL_BIN_DIR} COMPONENT ${XRT_COMPONENT}
+    LIBRARY DESTINATION ${XRT_INSTALL_LIB_DIR} COMPONENT ${XRT_COMPONENT} NAMELINK_COMPONENT ${XRT_DEV_COMPONENT}
+    ARCHIVE DESTINATION ${XRT_INSTALL_LIB_DIR} COMPONENT ${XRT_DEV_COMPONENT})
+else()
+  message(FATAL_ERROR "XRT_BASE aor XRT_XRT must be defined in order for xrt_coreutil to be built")
+endif()

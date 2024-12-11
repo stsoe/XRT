@@ -80,7 +80,7 @@ install (FILES ${XRT_HEADER_SRC}
   COMPONENT ${XRT_DEV_COMPONENT}
 )        
 
-if (XRT_ALVEO)
+if (XRT_XRT OR XRT_ALVEO)
   add_subdirectory(aws)
   add_subdirectory(azure)
   add_subdirectory(container)

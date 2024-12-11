@@ -152,7 +152,7 @@ message("-- XRT version: ${XRT_VERSION_STRING}")
 # -- CPack
 include (CMake/cpackLin.cmake)
 
-if (XRT_ALVEO)
+if (XRT_XRT OR XRT_ALVEO)
   message("-- XRT Alveo drivers will be bundled with the XRT package")
   set (XRT_DKMS_DRIVER_SRC_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/runtime_src/core")
   include (CMake/dkms.cmake)

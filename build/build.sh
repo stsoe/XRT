@@ -108,9 +108,11 @@ static_boost=""
 ertbsp=""
 ertfw=""
 werror=1
-alveo=1
+alveo_build=0
+npu_build=0
 xclbinutil=0
-xrt_install_prefix="/opt/xilinx"
+install_prefix_override=0
+xrt_install_prefix=/opt/xilinx/xrt
 cmake_flags="-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 
 while [ $# -gt 0 ]; do
@@ -155,9 +157,16 @@ while [ $# -gt 0 ]; do
             shift
             cmake_flags+=" -DXRT_ENABLE_HIP=ON"
             ;;
+        -alveo)
+            shift
+            alveo_build=1
+            xrt_build=0
+            cmake_flags+=" -DXRT_ALVEO=1"
+            ;;
 	-npu)
             shift
-	    alveo=0
+	    npu_build=1
+            xrt_build=0
 	    noert=1
 	    cmake_flags+=" -DXDP_CLIENT_BUILD_CMAKE=yes"
 	    cmake_flags+=" -DXRT_NPU=1"
@@ -236,7 +245,8 @@ while [ $# -gt 0 ]; do
             ;;
         -install_prefix)
             shift
-            xrt_install_prefix=$1
+            cmake_flags+=" -DCMAKE_INSTALL_PREFIX=$1 -DXRT_INSTALL_PREFIX=$1"
+            install_prefix_override=1
             shift
             ;;
         -with-static-boost)
@@ -260,13 +270,15 @@ edge_dir=${EDGE_DIR:-Edge}
 # Disable with '-disable-werror' option.
 cmake_flags+=" -DXRT_ENABLE_WERROR=$werror"
 
-# set CMAKE_INSTALL_PREFIX
-cmake_flags+=" -DCMAKE_INSTALL_PREFIX=$xrt_install_prefix -DXRT_INSTALL_PREFIX=$xrt_install_prefix"
-
-# Set CMake variable indicating build for Alveo
-# Specifying '-npu' disables Alveo
-if [[ $alveo == 1 ]]; then
-    cmake_flags+=" -DXRT_ALVEO=1"
+# Default build is legacy xrt, cannot be built with npu or alveo
+if [[ $alveo_build == 0 && $npu_build == 0 ]]; then
+    cmake_flags+=" -DXRT_XRT=1"
+    # Set CMAKE_INSTALL_PREFIX unless explicitly overridden
+    if [[ $install_prefix_override == 0 ]]; then
+        cmake_flags+=" -DCMAKE_INSTALL_PREFIX=$xrt_install_prefix -DXRT_INSTALL_PREFIX=$xrt_install_prefix"
+    fi
+else
+    cmake_flags+=" -DXRT_BASE=1"
 fi
 
 here=$PWD

@@ -3,7 +3,7 @@
 #
 set(ERT_INSTALL_PREFIX "/opt/xilinx/xrt/share/fw")
 if (DEFINED XRT_INSTALL_PREFIX)
-  set(ERT_INSTALL_PREFIX "${XRT_INSTALL_PREFIX}/xrt/share/fw")
+  set(ERT_INSTALL_PREFIX "${XRT_INSTALL_PREFIX}/share/fw")
 endif()
 set(ERT_INSTALL_FIRMWARE_PREFIX "/lib/firmware/xilinx")
 

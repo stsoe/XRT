@@ -4,8 +4,8 @@
 if(NOT WIN32)
   add_subdirectory(cloud-daemon)
 
-  if(XRT_ALVEO)
+  if(XRT_XRT OR XRT_ALVEO)
     add_subdirectory(xbflash.qspi)
-  endif(XRT_ALVEO)
+  endif()
 
 endif(NOT WIN32)

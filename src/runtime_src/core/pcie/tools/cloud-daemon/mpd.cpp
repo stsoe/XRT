@@ -46,11 +46,7 @@ enum Hotplug_state {
     MAILBOX_ADDED,
 };
 static bool quit = false;
-#ifdef XRT_INSTALL_PREFIX
-    #define MPD_PLUGIN_PATH XRT_INSTALL_PREFIX "/xrt/lib/libmpd_plugin.so"
-#else
-    #define MPD_PLUGIN_PATH "/opt/xilinx/xrt/lib/libmpd_plugin.so"
-#endif
+#define MPD_PLUGIN_PATH "/opt/xilinx/xrt/lib/libmpd_plugin.so"
 static const std::string plugin_path(MPD_PLUGIN_PATH);
 static struct mpd_plugin_callbacks plugin_cbs;
 static std::map<std::string, std::atomic<bool>> threads_handling;

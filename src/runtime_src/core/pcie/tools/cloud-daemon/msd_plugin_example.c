@@ -82,13 +82,8 @@ struct xclbin_repo {
  *
  * This md5 is the primary key of the repo database to get the real xclbin
  */
-#ifdef XRT_INSTALL_PREFIX
-    #define VERIFY_XCLBIN_PATH XRT_INSTALL_PREFIX "/dsa/xilinx_u250_xdma_201830_1/test/verify.xclbin"
-    #define BANDWIDTH_XCLBIN_PATH XRT_INSTALL_PREFIX "/dsa/xilinx_u250_xdma_201830_1/test/bandwidth.xclbin"
-#else
-    #define VERIFY_XCLBIN_PATH "/opt/xilinx/dsa/xilinx_u250_xdma_201830_1/test/verify.xclbin"
-    #define BANDWIDTH_XCLBIN_PATH "/opt/xilinx/dsa/xilinx_u250_xdma_201830_1/test/bandwidth.xclbin"
-#endif
+#define VERIFY_XCLBIN_PATH "/opt/xilinx/dsa/xilinx_u250_xdma_201830_1/test/verify.xclbin"
+#define BANDWIDTH_XCLBIN_PATH "/opt/xilinx/dsa/xilinx_u250_xdma_201830_1/test/bandwidth.xclbin"
 struct xclbin_repo repo[2] = {
     {
         .md5 = "7523f10fc420edcc2b3c90093dc738df",
