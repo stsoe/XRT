@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2024-2025 Advanced Micro Devices, Inc. All rights reserved.
+#include "gen/build_config.h"
 
 #include <array>
 #include <chrono>
@@ -41,13 +42,12 @@ constexpr unsigned int w32 = 32;
 constexpr unsigned int w64 = 64;
 constexpr unsigned int max_cmd_args = 8;
 constexpr unsigned int fw_9 = 9;
+constexpr const char* inst_lib_name = "xrt_capture";
 #ifdef _WIN32
-constexpr const char* inst_lib_name = "xrt_capture.dll";
 constexpr const char path_delimiter = ';';
 constexpr std::string_view path_separator = "\\";
 constexpr std::string_view env_path_key = "PATH";
 #else
-constexpr const char* inst_lib_name = "libxrt_capture.so";
 constexpr const char path_delimiter = ':';
 constexpr std::string_view path_separator = "/";
 constexpr const char* env_path_key = "LD_LIBRARY_PATH";
@@ -201,7 +201,12 @@ std::string find_file(const std::string& path, const std::string& file)
 std::string find_library_path(const std::string& lib_name)
 {
   std::string library_path = get_env(std::string(env_path_key));
-  return find_file(library_path, lib_name);
+#ifdef _WIN32
+  std::string library_name = lib_name + XRT_DEBUG_POSTFIX + ".dll";
+#else
+  std::string library_name = lib_name + ".so";
+#endif
+  return find_file(library_path, library_name);
 }
 
 std::string find_file_path(const std::string& lib_name)
@@ -647,7 +652,7 @@ int win_launcher(int& argc, char* argv[])
   /*
     Find and Check capture lib
   */
-  app.m_lib_path = find_library_path(std::string(inst_lib_name));
+  app.m_lib_path = find_library_path(inst_lib_name);
   if (!inst_lib_has_fixup_fn(app))
     log_f("Intrumentation hook not found in library: ", app.m_lib_path);
   else

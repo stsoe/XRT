@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2016-2020 Xilinx, Inc
 // Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.
-
 #define XRT_CORE_COMMON_SOURCE
 #include "core/common/module_loader.h"
 
 #include "core/common/dlfcn.h"
 #include "core/common/config_reader.h"
 #include "detail/xilinx_xrt.h"
+#include "gen/build_config.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -166,7 +166,7 @@ module_path(const std::string& module)
 {
   auto path = xilinx_xrt();
 #ifdef _WIN32
-  path /= module + ".dll";
+  path /= module + XRT_DEBUG_POSTFIX + ".dll";
 #else
   path /= "lib/xrt/module/lib" + module + ".so";
 #endif
@@ -184,7 +184,7 @@ shim_path()
   auto name = shim_name();
 
 #ifdef _WIN32
-  path /= name + ".dll";
+  path /= name + XRT_DEBUG_POSTFIX + ".dll";
 #else
   path /= "lib/lib" + name + ".so." + XRT_VERSION_MAJOR;
 #endif
