@@ -18,26 +18,7 @@ if (WIN32)
 endif()
 
 add_executable(${XBTRACER_NAME} ${SRCS})
-
-# Static build is a Linux / Ubuntu option only
-if (XRT_STATIC_BUILD)
-  add_executable(${XBTRACER_NAME}_static ${SRCS})
-  target_link_options(${XBTRACER_NAME}_static PRIVATE "-static" "-L${Boost_LIBRARY_DIRS}")
-  # Bypass FindBoost versions and just link explicitly with boost libraries
-  # The -static link option will pick the static libraries.
-  target_link_libraries(${XBTRACER_NAME}_static
-    PRIVATE
-    xrt_coreutil_static
-    boost_system
-    boost_program_options
-    -Wl,--whole-archive rt pthread -Wl,--no-whole-archive
-    uuid
-    dl
-    )
-  set_target_properties(${XBTRACER_NAME}_static PROPERTIES INSTALL_RPATH "")
-  install(TARGETS ${XBTRACER_NAME}_static
-    RUNTIME DESTINATION ${XRT_INSTALL_UNWRAPPED_DIR} COMPONENT ${XRT_BASE_COMPONENT})
-endif()
+set_target_properties(${XBTRACER_NAME} PROPERTIES DEBUG_POSTFIX "_d")
 
 install(TARGETS ${XBTRACER_NAME}
   RUNTIME DESTINATION ${XRT_INSTALL_UNWRAPPED_DIR} COMPONENT ${XRT_BASE_COMPONENT})
