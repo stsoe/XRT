@@ -12,6 +12,9 @@ target_include_directories(core_common_runner_objects
 
 add_executable(xrt-runner main.cpp)
 target_link_libraries(xrt-runner PRIVATE xrt_coreutil)
+if (WIN32)
+  set_target_properties(xrt-runner PROPERTIES DEBUG_POSTFIX "_d")
+endif()
 
 install(TARGETS xrt-runner
   RUNTIME DESTINATION ${XRT_INSTALL_UNWRAPPED_DIR} COMPONENT ${XRT_BASE_COMPONENT})
