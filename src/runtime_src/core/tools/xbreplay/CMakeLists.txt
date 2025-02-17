@@ -52,6 +52,8 @@ target_link_libraries(xbreplay
 
 if (NOT WIN32)
   target_link_libraries(xbreplay PRIVATE pthread dl PUBLIC uuid)
+else()
+  set_target_properties(xbreplay PROPERTIES DEBUG_POSTFIX "_d")
 endif()
 
 install (TARGETS xbreplay
