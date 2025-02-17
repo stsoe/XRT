@@ -33,6 +33,8 @@ endif()
 xrt_add_subdirectory(xdp)
 
 xrt_add_subdirectory(tools/xclbinutil)
+
+# Execlude OpenCL runtime for NPU
 xrt_add_subdirectory(xocl)
 xrt_add_subdirectory(xrt)
 
@@ -88,8 +90,11 @@ else()
   endif()
 
   # Build Subdirectories
-  xrt_add_subdirectory(xocl)
-  xrt_add_subdirectory(xrt)
+  if (NOT XRT_NPU)
+    xrt_add_subdirectory(ert)
+    xrt_add_subdirectory(xocl)
+    xrt_add_subdirectory(xrt)
+  endif()
   xrt_add_subdirectory(tools/xclbinutil)
   xrt_add_subdirectory(xdp)
   xrt_add_subdirectory(tools/scripts)
