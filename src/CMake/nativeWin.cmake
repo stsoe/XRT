@@ -9,6 +9,9 @@
 # XRT_VERSION_MINOR
 # XRT_VERSION_PATCH
 
+# set cmake postfix for debug and release
+set(CMAKE_DEBUG_POSTFIX "d")
+
 # pdb install dir
 set (CMAKE_PDB_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/symbols")
 
@@ -71,7 +74,8 @@ file(GLOB XRT_EULA
 install (FILES ${XRT_SOURCE_DIR}/../LICENSE DESTINATION ${XRT_INSTALL_DIR}/license)
 message("-- XRT EA eula files  ${XRT_SOURCE_DIR}/../LICENSE")
 
-# --- Create Version header and JSON file ---
+# Create config.h, version.h, and JSON version file
+include(CMake/config.cmake)
 include(CMake/version.cmake)
 
 message("------------ xrt install dir: ${XRT_INSTALL_DIR}")
@@ -87,7 +91,8 @@ endif()
 
 # -- CPack windows SDK if base component
 if (${XRT_BASE_DEV_COMPONENT} STREQUAL "base_dev")
-  include(CMake/cpack-windows-sdk.cmake)
+#  include(CMake/cpack-windows-sdk.cmake)
+  include(CMake/cpack-nsis.cmake)
 else()
   # Legacy
   include(CMake/cpackWin.cmake)

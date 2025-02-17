@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2025 Advanced Micro Devices, Inc. All rights reserved.
+#ifndef XRT_CONFIG_H
+#define XRT_CONFIG_H
+
+#define XRT_DEBUG_POSTFIX "@CMAKE_DEBUG_POSTFIX@"
+
+#endif // XRT_CONFIG_H

@@ -11,10 +11,15 @@ set BUILDDIR=%SCRIPTDIR%
 set DEBUG=1
 set RELEASE=1
 set EXT_DIR=C:/Xilinx/XRT/ext.new
-set CREATE_PACKAGE=0
-set CREATE_SDK=0
+set SDK=0
 set CMAKEFLAGS=
+set CLEAN=0
+set NOINIT=0
 set NOCMAKE=0
+set NOBUILD=0
+set BASE=0
+set NPU=0
+set ALVEO=0
 set NOCTEST=0
 set GENERATOR="Visual Studio 17 2022"
 
@@ -25,109 +30,136 @@ IF DEFINED MSVC_PARALLEL_JOBS ( SET LOCAL_MSVC_PARALLEL_JOBS=%MSVC_PARALLEL_JOBS
     goto argsParsed
   ) else (
   if [%1] == [-clean] (
-    goto Clean
+    SET CLEAN=1
   ) else (
   if [%1] == [-help] (
     goto Help
   ) else (
   if [%1] == [-dbg] (
+    if [%DEBUG%] == [0] (
+      echo build22.bat: -dbg and -opt are mutually exclusive, specify one or none
+      exit /B 1
+    )
+    set DEBUG=1
+    set RELEASE=0
+  ) else (
+  if [%1] == [-opt] (
+    if [%RELEASE%] == [0] (
+      echo build22.bat: -opt and -dbg are mutually exclusive, specify one or none
+      exit /B 1
+    )
+    set RELEASE=1
+    set DEBUG=0
+  ) else (
+  if [%1] == [-nobuild] (
+    if [%DEBUG%] == [0] (
+      echo build22.bat: -nobuild cannot be used -dbg or -opt
+      exit /B 1
+    )
+    if [%RELEASE%] == [0] (
+      echo build22.bat: -nobuild cannot be used -opt or -dbg
+      exit /B 1
+    )
+    set DEBUG=0
     set RELEASE=0
   ) else (
   if [%1] == [-ext] (
     shift
-    set EXT_DIR=%2
+    set EXT_DIR=%1
   ) else (
-  if [%1] == [-opt] (
-    set DEBUG=0
+  if [%1] == [-base] (
+    set BASE=1
+    set CMAKEFLAGS=%CMAKEFLAGS% -DXRT_BASE=1
   ) else (
   if [%1] == [-npu] (
+    set NPU=1
     set CMAKEFLAGS=%CMAKEFLAGS% -DXRT_NPU=1
+  ) else (
+  if [%1] == [-alveo] (
+    set ALVEO=1
+    set CMAKEFLAGS=%CMAKEFLAGS% -DXRT_ALVEO=1
+  ) else (
+  if [%1] == [-noinit] (
+    set NOINIT=1
+  ) else (
+  if [%1] == [-nocmake] (
+    set NOCMAKE=1
+    set NOINIT=1
   ) else (
   if [%1] == [-noabi] (
     set CMAKEFLAGS=%CMAKEFLAGS% -DDISABLE_ABI_CHECK=1
   ) else (
   if [%1] == [-sdk] (
-    set CREATE_SDK=1
-    set CMAKEFLAGS=%CMAKEFLAGS% -DXRT_NPU=1
-  ) else (
-  if [%1] == [-pkg] (
-    set CREATE_PACKAGE=1
-  ) else (
-  if [%1] == [-nocmake] (
-    set NOCMAKE=1
+    set SDK=1
+    set DEBUG=1
+    set RELEASE=1
   ) else (
   if [%1] == [-hip] (
     set CMAKEFLAGS=%CMAKEFLAGS% -DXRT_ENABLE_HIP=ON
   ) else (
     echo Unknown option: %1
     goto Help
-  ))))))))))))
+  )))))))))))))))
   shift
   goto parseArgs
 
 :argsParsed
 
+if [%CLEAN%] == [1] (
+  if EXIST %BUILDDIR%\WBuild (
+    echo Removing 'WBuild' directory...
+    rmdir /S /Q %BUILDDIR%\WBuild
+  )
+  exit /B 0
+)
+
+if [%NPU%+%ALVEO%+%BASE%] gtr 1 (
+  echo build22.bat: -npu, -alveo, -base are mutually exclusive
+  exit /B 1
+)
+
+if [%NOCMAKE%] == [0] if EXIST %BUILDDIR%\WBuild\CMakeCache.txt (
+    echo Disabling cmake configuration; using existing build configuration
+    echo Use -clean to remove existing build configuration
+    set NOCMAKE=1
+    set NOINIT=1
+)
+
+if [%NOINIT%] == [0] (
+   echo Updating Git submodules, use -noinit option to avoid updating
+   git submodule update --init --progress --recursive
+)
+
+if [%NOCMAKE%] == [0] (
+   echo Configuring CMake project
+   set CMAKEFLAGS=%CMAKEFLAGS%^
+   -DMSVC_PARALLEL_JOBS=%LOCAL_MSVC_PARALLEL_JOBS%^
+   -DKHRONOS=%EXT_DIR%^
+   -DBOOST_ROOT=%EXT_DIR%^
+   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON^
+   -DCMAKE_INSTALL_PREFIX=%BUILDDIR%\WBuild\xilinx\xrt
+
+   echo cmake -B %BUILDDIR%\WBuild -G "Visual Studio 17 2022" !CMAKEFLAGS! %BUILDDIR%\..\src
+   cmake -B %BUILDDIR%\WBuild -G "Visual Studio 17 2022" !CMAKEFLAGS! %BUILDDIR%\..\src
+)
+
 if [%DEBUG%] == [1] (
-   if [%NOCMAKE%] == [0] (
-      echo Configuring CMake project
-      
-      set CMAKEFLAGS=%CMAKEFLAGS%^
-      -DMSVC_PARALLEL_JOBS=%LOCAL_MSVC_PARALLEL_JOBS%^
-      -DKHRONOS=%EXT_DIR%^
-      -DBOOST_ROOT=%EXT_DIR%^
-      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-
-      echo cmake -B %BUILDDIR%\WDebug -G %GENERATOR% !CMAKEFLAGS! %BUILDDIR%\..\src
-      cmake -B %BUILDDIR%\WDebug -G %GENERATOR% !CMAKEFLAGS! %BUILDDIR%\..\src
-      IF errorlevel 1 (exit /B %errorlevel%)
-   )
-
-   echo cmake --build %BUILDDIR%\WDebug --config Debug --verbose
-   cmake --build %BUILDDIR%\WDebug --config Debug --verbose
-   if errorlevel 1 (exit /B %errorlevel%)
-
-   echo cmake --install %BUILDDIR%\WDebug --config Debug --prefix %BUILDDIR%\WDebug\xilinx\xrt --verbose
-   cmake --install %BUILDDIR%\WDebug --config Debug --prefix %BUILDDIR%\WDebug\xilinx\xrt
-   if errorlevel 1 (exit /B %errorlevel%)
+   echo cmake --build %BUILDDIR%\WBuild --config Debug --target install --verbose
+   cmake --build %BUILDDIR%\WBuild --config Debug --target install --verbose
 )
 
 if [%RELEASE%] == [1] (
-   if [%NOCMAKE%] == [0] (
-      echo Configuring CMake project
-      
-      set CMAKEFLAGS=%CMAKEFLAGS%^
-      -DMSVC_PARALLEL_JOBS=%LOCAL_MSVC_PARALLEL_JOBS%^
-      -DKHRONOS=%EXT_DIR%^
-      -DBOOST_ROOT=%EXT_DIR%^
-      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-
-      echo cmake -B %BUILDDIR%\WRelease -G %GENERATOR% !CMAKEFLAGS! %BUILDDIR%\..\src
-      cmake -B %BUILDDIR%\WRelease -G %GENERATOR% !CMAKEFLAGS! %BUILDDIR%\..\src
-      IF errorlevel 1 (exit /B %errorlevel%)
-   )
-
-   echo cmake --build %BUILDDIR%\WRelease --config Release --verbose
-   cmake --build %BUILDDIR%\WRelease --config Release --verbose
-   if errorlevel 1 (exit /B %errorlevel%)
-
-   echo cmake --install %BUILDDIR%\WRelease --config Release --prefix %BUILDDIR%\WRelease\xilinx\xrt --verbose
-   cmake --install %BUILDDIR%\WRelease --config Release --prefix %BUILDDIR%\WRelease\xilinx\xrt
-   if errorlevel 1 (exit /B %errorlevel%)
-
-   ECHO ====================== Create SDK ZIP archive ============================
-   echo cpack -G ZIP -B %BUILDDIR%\WRelease -C Release --config %BUILDDIR%\WRelease\CPackConfig.cmake
-   cpack -G ZIP -B %BUILDDIR%\WRelease -C Release --config %BUILDDIR%\WRelease\CPackConfig.cmake
-   if errorlevel 1 (exit /B %errorlevel%)
-
-   if [%CREATE_PACKAGE%]  == [1] (
-      ECHO ====================== Creating MSI Archive ============================
-      echo cpack -G WIX -B %BUILDDIR%\WRelease -C Release --config %BUILDDIR%\WRelease\CPackConfig.cmake
-      cpack -G WIX -B %BUILDDIR%\WRelease -C Release --config %BUILDDIR%\WRelease\CPackConfig.cmake
-      if errorlevel 1 (exit /B %errorlevel%)
-   )
+   echo cmake --build %BUILDDIR%\WBuild --config Release --target install --verbose
+   cmake --build %BUILDDIR%\WBuild --config Release --target install --verbose
 )
 
-goto :EOF
+if [%SDK%] == [1] (
+   echo Create SDK NSIS Installer ...
+   PUSHD %BUILDDIR%\WBuild
+   cpack -G NSIS -C Release;Debug
+)
+
+exit /b 0
 
 REM --------------------------------------------------------------------------
 :Help
@@ -136,21 +168,13 @@ ECHO Usage: build22.bat [options]
 ECHO.
 ECHO [-help]                    - List this help
 ECHO [-clean]                   - Remove build directories
-ECHO [-dbg]                     - Creates a debug build
+ECHO [-dbg]                     - Creates a debug build (default)
+ECHO [-opt]                     - Creates a release build (default)
+ECHO [-nocmake]                 - Do not reconfigure the project (implies -noinit)
+ECHO [-nobuild]                 - Do not build the project
+ECHO [-noinit]                  - Do not initialize submodules
 ECHO [-noabi]                   - Do not compile with ABI version check (make incremental builds faster)
-ECHO [-opt]                     - Creates a release build
 ECHO [-sdk]                     - Create NSIS XRT SDK Installer for NPU (requires NSIS installed).
-echo [-package]                 - Packages the release build to a MSI archive.
+ECHO [-alveo]                   - Build Alveo component of XRT (deployment and development)
 ECHO [-npu]                     - Build NPU component of XRT (deployment and development)
 ECHO [-hip]                     - Enable hip library build
-GOTO:EOF
-
-:Clean
-IF EXIST %BUILDDIR%\WRelease (
-  ECHO Removing '%BUILDDIR%\WRelease' directory...
-  rmdir /S /Q %BUILDDIR%\WRelease
-)
-IF EXIST %BUILDDIR%\WDebug (
-  ECHO Removing '%BUILDDIR%\WDebug' directory...
-  rmdir /S /Q %BUILDDIR%\WDebug
-)

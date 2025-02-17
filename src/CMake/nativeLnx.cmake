@@ -108,8 +108,9 @@ install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE
   COMPONENT ${XRT_BASE_COMPONENT})
 message("-- XRT EA eula files  ${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE")
 
-# --- Create Version header and JSON file ---
-include (CMake/version.cmake)
+# Create config.h, version.h, and JSON version file
+include(CMake/config.cmake)
+include(CMake/version.cmake)
 
 # --- Cache support
 include (CMake/ccache.cmake)

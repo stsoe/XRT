@@ -135,8 +135,12 @@ if(NOT WIN32)
 endif()
 
 # Link required windows specific libraries with MinGW
-if(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
-  target_link_libraries(${XCLBINUTIL_NAME} PRIVATE wsock32 ws2_32)
+if(WIN32)
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_libraries(${XCLBINUTIL_NAME} PRIVATE wsock32 ws2_32)
+  else()
+    set_target_properties(${XCLBINUTIL_NAME} PROPERTIES DEBUG_POSTFIX "_d")
+  endif()
 endif()
 
 install (TARGETS ${XCLBINUTIL_NAME}

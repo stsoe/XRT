@@ -101,6 +101,7 @@ target_link_libraries(${XBMGMT2_NAME}
 # Add the supporting libraries
 if(WIN32)
   target_link_libraries(${XBMGMT2_NAME} PRIVATE ws2_32)
+  set_target_properties(${XBMGMT2_NAME} PROPERTIES DEBUG_POSTFIX "_d")
 else()
   target_link_libraries(${XBMGMT2_NAME} PRIVATE pthread uuid dl)
 endif()

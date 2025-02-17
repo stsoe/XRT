@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2016-2020 Xilinx, Inc
 // Copyright (C) 2024-2025 Advanced Micro Devices, Inc. All rights reserved.
-
 #define XRT_CORE_COMMON_SOURCE
 #include "core/common/module_loader.h"
 
 #include "core/common/dlfcn.h"
 #include "core/common/config_reader.h"
 #include "detail/xilinx_xrt.h"
+#include "gen/build_config.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -62,6 +62,19 @@ is_noop_emulation()
   return noop;
 }
 
+[[maybe_unused]]
+static std::string
+dllname(const std::string& name)
+{
+#if defined (_WIN32) && defined(_DEBUG)
+  return name + XRT_DEBUG_POSTFIX + ".dll";
+#elif defined (_WIN32)
+  return name + ".dll";
+#else
+  throw std::runtime_error("dllname() should be called only on windows platform");
+#endif
+}
+
 static std::string
 shim_name()
 {
@@ -91,6 +104,18 @@ shim_name()
 static sfs::path
 get_xilinx_xrt()
 {
+#if defined(_WIN32) && defined(_DEBUG)
+  // The XRT SDK supports debug application development where debug
+  // libraries can be picked up from a specific location.  Since
+  // XILINX_XRT affects both Debug and Release, it is desirable to
+  // have a separate environment variable for debug builds that don't
+  // accidentally control the release build behavior if same
+  // enviroment is used for both release and debug.
+  sfs::path xrt_dbg(value_or_empty(getenv("XILINX_XRT_DEBUG")));
+  if (!xrt_dbg.empty())
+    return xrt_dbg;
+#endif
+
   sfs::path xrt(value_or_empty(getenv("XILINX_XRT")));
   if (!xrt.empty())
     return xrt;
@@ -170,7 +195,7 @@ module_path(const std::string& module)
 {
   auto path = xilinx_xrt();
 #ifdef _WIN32
-  path /= module + ".dll";
+  path /= dllname(module);
 #else
   path /= XRT_LIB_DIR;
   path /= "xrt/module/lib" + module + ".so";
@@ -189,7 +214,7 @@ shim_path()
   auto name = shim_name();
 
 #ifdef _WIN32
-  path /= name + ".dll";
+  path /= dllname(name);
 #else
   path /= XRT_LIB_DIR;
   path /= "lib" + name + ".so." + XRT_VERSION_MAJOR;

@@ -16,6 +16,7 @@ if (NOT WIN32)
 else()
 
   set(XRT_SETUP_SCRIPTS
+    debug.bat
     setup.bat)
 
   set (XRT_LOADER_SCRIPTS
@@ -36,8 +37,3 @@ if (XRT_BASE)
   endif()
 endif()
 
-if (XRT_ALVEO)
-  install (PROGRAMS ${XRT_SCRIPTS}
-    DESTINATION ${XRT_INSTALL_BIN_DIR}
-    COMPONENT ${XRT_COMPONENT})
-endif()

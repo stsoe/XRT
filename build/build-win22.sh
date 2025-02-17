@@ -7,20 +7,18 @@
 set -e
 
 BUILDDIR=$(readlink -f $(dirname ${BASH_SOURCE[0]}))
+SRCDIR=$(readlink -f $BUILDDIR/../src)
 
 unix2dos()
 {
     echo $(sed -e 's|/mnt/\([A-Za-z]\)/\(.*\)|\1:/\2|' <<< $1)
 }
 
-
-CORE=`grep -c ^processor /proc/cpuinfo`
-
 CMAKE="/mnt/c/Program Files/CMake/bin/cmake.exe"
 CPACK="/mnt/c/Program Files/CMake/bin/cpack.exe"
-EXT_DIR=/mnt/c/Xilinx/xrt/ext.new
-BOOST=$(unix2dos $EXT_DIR)
-KHRONOS=$(unix2dos $EXT_DIR)
+EXT=${EXT_DIR:-/mnt/c/Xilinx/xrt/ext.new}
+BOOST=$EXT
+KHRONOS=$EXT
 
 usage()
 {
@@ -28,32 +26,37 @@ usage()
     echo
     echo "[-help]                    List this help"
     echo "[clean|-clean]             Remove build directories"
-    echo "[-prefix]                  CMAKE_INSTALL_PREFIX"
+    echo "[-prefix]                  CMAKE_INSTALL_PREFIX (default: $BUILDDIR/WBuild/xilinx/xrt)"
     echo "[-cmake]                   CMAKE executable (default: $CMAKE)"
-    echo "[-ext]                     Location of link dependencies (default: $EXT_DIR)"
+    echo "[-ext]                     Location of link dependencies (default: $EXT)"
     echo "[-boost]                   BOOST libaries root directory (default: $BOOST)"
     echo "[-nocmake]                 Do not rerun cmake generation, just build"
+    echo "[-noinit]                  Do not initialize Git submodules (default with [-nocmake])"
     echo "[-noabi]                   Do compile with ABI version check"
     echo "[-j <n>]                   Compile parallel (default: system cores)"
-    echo "[-dbg]                     Build debug library (default: optimized)"
-    echo "[-all]                     Build debug and optimized library (default: optimized)"
+    echo "[-dbg]                     Build debug library (default)"
+    echo "[-opt]                     Build release library (default)"
+    echo "[-nobuild]                 Disables build step"
     echo "[-sdk]                     Create NSIS XRT SDK NPU Installer (requires NSIS installed)."
 
     exit 1
 }
 
 clean=0
-prefix=
-jcore=$CORE
+prefix=$BUILDDIR/WBuild/xilinx/xrt
+jcore=`grep -c ^processor /proc/cpuinfo`
 nocmake=0
+noinit=0
 noabi=0
-dbg=0
+dbg=1
 release=1
 sdk=0
 alveo_build=0
 npu_build=0
 base_build=0
 cmake_flags="-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+generator="Visual Studio 17 2022"
+
 while [ $# -gt 0 ]; do
     case "$1" in
         -help)
@@ -75,19 +78,36 @@ while [ $# -gt 0 ]; do
 	    ;;
 	-ext)
 	    shift
-	    EXT_DIR="$1"
-            BOOST=$EXT_DIR
-            KHRONOS=$EXT_DIR
+	    EXT="$1"
+            BOOST=$EXT
+            KHRONOS=$EXT
 	    shift
 	    ;;
         -dbg)
+            if [[ $dbg == 0 ]]; then
+                echo "-dbg and -opt are mutually exclusive, specify one only, or none at all"
+                exit 1
+            fi
             dbg=1
             release=0
             shift
             ;;
-        -all)
-            dbg=1
+        -opt)
+            if [[ $release == 0 ]]; then
+                echo "-opt and -dbg are mutually exclusive, specify one only, or none at all"
+                exit 1
+            fi
+            dbg=0
             release=1
+            shift
+            ;;
+        -nobuild)
+            if [[ $dbg == 0 || $release == 0 ]]; then
+                echo "-nobuild cannot be used with either -opt or -dbg"
+                exit 1
+            fi
+            dbg=0
+            release=0
             shift
             ;;
 	-boost)
@@ -121,6 +141,11 @@ while [ $# -gt 0 ]; do
             ;;
         -nocmake)
             nocmake=1
+            noinit=1
+            shift
+            ;;
+        -noinit)
+            noinit=1
             shift
             ;;
         -noabi)
@@ -129,8 +154,8 @@ while [ $# -gt 0 ]; do
             ;;
         -sdk)
             shift
-            npu_build=1
-	    cmake_flags+=" -DXRT_NPU=1"
+            dbg=1
+            release=1
             sdk=1
             ;;
         *)
@@ -145,54 +170,52 @@ if [[ $((npu_build + alveo_build + base_build)) > 1 ]]; then
     exit 1
 fi
 
-BOOST=$(unix2dos $BOOST)
-KHRONOS=$(unix2dos $KHRONOS)
-BUILDDIR_DOS=$(unix2dos $BUILDDIR)
-prefix=$(unix2dos $prefix)
-
 if [[ $clean == 1 ]]; then
-    echo $PWD
-    echo "/bin/rm -rf $BUILDDIR/{WRelease,WDebug}"
-    /bin/rm -rf $BUILDDIR/{WRelease,WDebug}
+    echo "/bin/rm -rf $BUILDDIR/WBuild"
+    /bin/rm -rf $BUILDDIR/WBuild
     exit 0
 fi
 
-cmake_flags+=" -DMSVC_PARALLEL_JOBS=$jcore"
-cmake_flags+=" -DKHRONOS=$KHRONOS"
-cmake_flags+=" -DBOOST_ROOT=$BOOST"
+BOOST_DOS=$(unix2dos $BOOST)
+KHRONOS_DOS=$(unix2dos $KHRONOS)
+SRCDIR_DOS=$(unix2dos $SRCDIR)
+BUILDDIR_DOS=$(unix2dos $BUILDDIR/WBuild)
+PREFIX_DOS=$(unix2dos $prefix)
 
-if [ $dbg == 1 ]; then
-    cmake_flags+=" -DCMAKE_BUILD_TYPE=Debug"
-    mkdir -p WDebug
-
-    if [[ $prefix != "" ]]; then
-        cmake_flags+=" -DCMAKE_INSTALL_PREFIX=$prefix"
-    fi
-
-    if [ $nocmake == 0 ]; then
-        echo "${cmake_flags[@]}"
-        "$CMAKE" -G "Visual Studio 17 2022" -B $BUILDDIR_DOS/WDebug $cmake_flags $BUILDDIR_DOS/../src
-    fi
-    "$CMAKE" --build $BUILDDIR_DOS/WDebug --verbose --config Debug
-    "$CMAKE" --install $BUILDDIR_DOS/WDebug --config Debug --prefix $BUILDDIR_DOS/WDebug/xilinx/xrt
+if [[ $nocmake == 0 && -e $BUILDDIR/WBuild/CMakeCache.txt ]]; then
+    echo "Disabling cmake configuration; using existing build configuration"
+    echo "Use -clean to remove existing build configuration"
+    nocmake=1
+    noinit=1
 fi
 
-if [ $release == 1 ]; then
-    cmake_flags+=" -DCMAKE_BUILD_TYPE=Release"
+if [[ $noinit == 0 ]]; then
+   echo "Updating Git submodules, use -noinit option to avoid updating"
+   git submodule update --init --progress --recursive
+fi
 
-    if [[ $prefix != "" ]]; then
-        cmake_flags+=" -DCMAKE_INSTALL_PREFIX=$prefix"
-    fi
-    
-    if [ $nocmake == 0 ]; then
-        echo "${cmake_flags[@]}"
-        "$CMAKE" -G "Visual Studio 17 2022" -B $BUILDDIR_DOS/WRelease $cmake_flags $BUILDDIR_DOS/../src
-    fi
-    "$CMAKE" --build $BUILDDIR_DOS/WRelease --verbose --config Release
-    "$CMAKE" --install $BUILDDIR_DOS/WRelease --verbose --config Release --prefix $BUILDDIR_DOS/WRelease/xilinx/xrt
+if [[ $nocmake == 0 ]]; then
+    cmake_flags+=" -DMSVC_PARALLEL_JOBS=$jcore"
+    cmake_flags+=" -DKHRONOS=$KHRONOS_DOS"
+    cmake_flags+=" -DBOOST_ROOT=$BOOST_DOS"
+    cmake_flags+=" -DCMAKE_INSTALL_PREFIX=$PREFIX_DOS"
 
-    if [[ $sdk == 1 && $npu_build == 1 ]]; then
-        echo "Creating SDK installer ..."
-        "$CPACK" -G NSIS -B $BUILDDIR_DOS/WRelease -C Release --config $BUILDDIR_DOS/WRelease/CPackConfig.cmake
-    fi
+    echo "$CMAKE -G $generator -B $BUILDDIR_DOS $cmake_flags $SRCDIR_DOS"
+    "$CMAKE" -G "$generator" -B $BUILDDIR_DOS $cmake_flags $SRCDIR_DOS
+fi
+
+if [[ $dbg == 1 ]]; then
+    "$CMAKE" --build $BUILDDIR_DOS --config Debug --target install --verbose
+fi
+
+if [[ $release == 1 ]]; then
+    "$CMAKE" --build $BUILDDIR_DOS --config Release --target install --verbose
+fi
+
+if [[ $sdk == 1 ]]; then
+    echo "Creating SDK NSIS installer ..."
+    here=$PWD
+    cd $BUILDDIR/WBuild
+    "$CPACK" -G NSIS -C "Release;Debug"
+    cd $here
 fi

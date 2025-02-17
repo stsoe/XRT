@@ -113,6 +113,8 @@ if (NOT WIN32)
 else()
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_libraries(${XBUTIL2_NAME} PRIVATE ws2_32)
+  else()
+    set_target_properties(${XBUTIL2_NAME} PROPERTIES DEBUG_POSTFIX "_d")
   endif()
 endif()
 

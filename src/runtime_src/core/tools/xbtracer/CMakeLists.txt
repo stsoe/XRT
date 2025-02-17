@@ -107,7 +107,10 @@ add_dependencies(xrt_trace ms_detours)
 target_include_directories(xrt-tracer PRIVATE ${DETOURS_INCLUDE})
 target_link_libraries(xrt-tracer PRIVATE ms_detours)
 add_dependencies(xrt-tracer ms_detours)
+set_target_properties(xrt-tracer PROPERTIES DEBUG_POSTFIX "_d")
+set_target_properties(xrt-replace PROPERTIES DEBUG_POSTFIX "_d")
 endif(WIN32)
+
 
 # Install our built executable
 set(XBTRACER_TARGETS xrt-tracer xrt-replay)
