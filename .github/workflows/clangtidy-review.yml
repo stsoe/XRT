@@ -27,6 +27,7 @@ jobs:
         apt_packages: |
          cmake, g++, pkg-config, libdrm-dev,
          ocl-icd-dev, ocl-icd-libopencl1, ocl-icd-opencl-dev,
+         libamdhip64-dev,
          libboost-dev, libboost-filesystem-dev, libboost-program-options-dev,
          libncurses5-dev,
          libssl-dev,
@@ -37,7 +38,7 @@ jobs:
          systemtap-sdt-dev,
          curl, libcurl4-openssl-dev,
          libudev-dev
-        cmake_command: cmake -B build/Release -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        cmake_command: cmake -B build/Release -DXRT_ENABLE_HIP=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
         # disable default checks and rely on closest .clangtidy
         clang_tidy_checks: ''
         split_workflow: true
