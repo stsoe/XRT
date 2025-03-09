@@ -12,25 +12,36 @@ jobs:
     steps:
     - name: Checkout XRT
       uses: actions/checkout@v4
+      
     - name: Store sha
       run: echo ${{ github.sha }} > sha
+      
     - name: Compare sha
       uses: actions/cache@v4
       id: cache-sha
       with:
         path: sha
         key: clangtidy-${{ github.sha }}
+        
     - name: Install dependencies
       if: steps.cache-sha.outputs.cache-hit != 'true'
       run: |
         sudo apt update
         sudo src/runtime_src/tools/scripts/xrtdeps.sh
         sudo pip3 install clang-html
+        
     - name: Build with clangtidy
       if: steps.cache-sha.outputs.cache-hit != 'true'
       run: |
-        build/build.sh -clangtidy -opt -noert |& tee build.clangtidy.log
-        clang-tidy-html build.clangtidy.log
+        # Legacy XRT build with hip
+        cmake -B build/Release \
+        -DXRT_ENABLE_HIP=ON \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -DCMAKE_BUILD_TYPE=Release src
+
+        run-clang-tidy -p build/Release -j 16 -export-fixes=fixes.yml |& tee build/Release/build.clangtidy.log
+        clang-tidy-html build/Release/build.clangtidy.log
+
     - name: Upload clang raw log
       if: steps.cache-sha.outputs.cache-hit != 'true'
       uses: actions/upload-artifact@v4
