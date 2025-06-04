@@ -27,12 +27,12 @@ namespace xrt::ext {
  * xrt::ext::bo is an extension of xrt::bo with additional functionality
  *
  * @details
- * An extension buffer amends the contruction of an xrt::bo with
+ * An extension buffer amends the construction of an xrt::bo with
  * additional simplified constructors for specifying access mode of
  * host only buffers.
  *
  * Once constructed, the object must be assigned to an xrt::bo object
- * before use.  This is becayse XRT relies on templated kernel
+ * before use.  This is because XRT relies on templated kernel
  * argument assignment and the templated assignment operator is not
  * specialized for xrt::ext::bo.
  *
@@ -82,7 +82,7 @@ public:
    * is specified.
    *
    * Friend operators are provided for bitwise operations on access
-   * mode.  It is invalid to combine local, shared, proces, and hybrid.
+   * mode.  It is invalid to combine local, shared, process, and hybrid.
    */
   enum class access_mode : uint64_t
   {
@@ -96,6 +96,27 @@ public:
     shared  = 1 << 2,
     process = 1 << 3,
     hybrid  = 1 << 4, 
+  };
+
+  /**
+   * @enum use_type - buffer object use
+   *
+   * Controls construction of special buffers that can be used
+   * to exchange data with device.
+   *
+   * @var debug
+   *   Indicates that the buffer will be used to communicate debug
+   *   data from driver / firmware back to user space. This type of
+   *   usage is supported on specific platforms only.
+   * @var uc_debug
+   *   Indicates that the buffer will be used to communicate debug
+   *   data from microblaze back to user space. This type of usage is
+   *   supported on platforms with microblaze only
+   */
+  enum class use_type
+  {
+    debug = XRT_BO_USE_DEBUG, 
+    uc_debug = XRT_BO_USE_UC_DEBUG
   };
 
   friend constexpr access_mode operator&(access_mode lhs, access_mode rhs)
@@ -223,6 +244,24 @@ public:
    */
   XRT_API_EXPORT
   bo(const xrt::hw_context& hwctx, size_t sz);
+
+  /**
+   * bo() - Constructor for specific usage buffer object
+   *
+   * @param hwctx
+   *   The hardware context associated with this buffer object
+   * @param sz
+   *  Size of buffer
+   * @param usage
+   *  How this buffer object is designated for use
+   *
+   * This constructor creates a special purpose buffer object with
+   * local access and in|out direction.  The usage type for the buffer
+   * controls how the buffer is created and how it can be used.  This
+   * type of buffer cannot be used as kernel argument.
+   */
+  XRT_API_EXPORT
+  bo(const xrt::hw_context& hwctx, size_t sz, use_type usage);
 
   /// @cond
   // Deprecated.  Hardware context specific import is not supported
