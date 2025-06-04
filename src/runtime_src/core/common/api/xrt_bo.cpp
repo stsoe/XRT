@@ -1629,6 +1629,12 @@ adjust_buffer_flags(xrt::ext::bo::access_mode access)
   return flags.all;
 }
 
+static xrt_core::bo_int::use_type
+to_usetype(xrt::ext::bo::use_type usage)
+{
+  return static_cast<xrt_core::bo_int::use_type>(static_cast<int>(usage));
+}
+
 static std::shared_ptr<xrt::bo_impl>
 alloc_kbuf(const device_type& device, void* userptr, size_t sz, xrtBufferFlags flags)
 {
@@ -1665,6 +1671,11 @@ bo(const xrt::device& device, size_t sz)
 bo::
 bo(const xrt::hw_context& hwctx, size_t sz, access_mode access)
   : xrt::bo::bo{alloc_kbuf(device_type{hwctx}, nullptr, sz, adjust_buffer_flags(access))}
+{}
+
+bo::
+bo(const xrt::hw_context& hwctx, size_t sz, use_type usage)
+  : xrt::bo::bo{xrt_core::bo_int::create_bo(hwctx, sz, to_usetype(usage)).get_handle()}
 {}
 
 bo::
