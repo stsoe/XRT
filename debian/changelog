@@ -1,0 +1,16 @@
+xrt (202020.2.8.832+dfsg-2) experimental; urgency=medium
+
+  * Fix reproducible builds in version.h (Closes: #1007184)
+    d/patches/0008-src-CMake-version.cmake-Consistently-use-UTC-timezon.patch.
+    Thanks to Vagrant Cascadian <vagrant@reproducible-builds.org>.
+  * Fix package long descriptions. (Closes: #1008476, #1006524)
+  * Rename /usr/bin/mpd to /usr/bin/xrt_mpd. (Closes: #1006596)
+
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Tue, 31 May 2022 10:39:44 +0900
+
+xrt (202020.2.8.832+dfsg-1) experimental; urgency=medium
+
+  [ Punit Agrawal ]
+  * Initial release. (Closes: #1004006)
+
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Thu, 20 Jan 2022 12:01:01 +0900

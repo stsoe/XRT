@@ -1,0 +1,36 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+
+CONFIGURE_ARGS = -DCMAKE_BUILD_TYPE=Release \
+	-DLIB_SUFFIX=/$(DEB_HOST_MULTIARCH)
+
+ifeq ($(DEB_HOST_ARCH),arm64)
+	CONFIGURE_ARGS += -DXRT_EDGE_BUILD=yes
+endif
+
+%:
+	dh $@ --sourcedir=src
+
+override_dh_auto_configure:
+	dh_auto_configure -- $(CONFIGURE_ARGS)
+
+override_dh_auto_install:
+	dh_auto_install
+
+	rm -rf $(CURDIR)/debian/tmp/usr/bin/unwrapped/
+	rm -rf $(CURDIR)/debian/tmp/usr/src
+
+	# Fix lintian: script-with-language-extension
+	mv $(CURDIR)/debian/tmp/usr/bin/plp_program.sh \
+		$(CURDIR)/debian/tmp/usr/bin/plp_program
+	mv $(CURDIR)/debian/tmp/usr/bin/xrtdeps.sh \
+		$(CURDIR)/debian/tmp/usr/bin/xrtdeps
+	mv $(CURDIR)/debian/tmp/usr/bin/mpd \
+		$(CURDIR)/debian/tmp/usr/bin/xrt_mpd
+
+# Override dh_missing
+override_dh_missing:

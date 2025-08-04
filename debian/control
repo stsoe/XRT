@@ -1,0 +1,82 @@
+Source: xrt
+Section: libs
+Priority: optional
+Maintainer: Debian Xilinx Package Maintainers <team+pkg-xilinx@tracker.debian.org>
+Uploaders: Punit Agrawal <punit@debian.org>,
+	   Nobuhiro Iwamatsu <iwamatsu@debian.org>
+Build-Depends: cmake,
+	debhelper-compat (= 13),
+	doxygen [amd64],
+	libboost-filesystem-dev,
+	libboost-program-options-dev,
+	libboost-system-dev,
+	libcurl4-openssl-dev,
+	libdrm-dev,
+	libncurses-dev,
+	libprotobuf-dev,
+	libssl-dev,
+	libudev-dev,
+	libyaml-dev,
+	lsb-release [amd64],
+	ocl-icd-opencl-dev,
+	ocl-icd-dev,
+	pkg-config,
+	protobuf-compiler,
+	uuid-dev
+Standards-Version: 4.5.0
+Rules-Requires-Root: no
+Homepage: https://www.xilinx.com/products/design-tools/vitis/xrt.html
+Vcs-Git: https://salsa.debian.org/xilinx-packages-team/xrt.git
+Vcs-Browser: https://salsa.debian.org/xilinx-packages-team/xrt
+
+Package: libxrt1
+Architecture: arm64 amd64
+Multi-Arch: same
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Xilinx Runtime (XRT) - runtime libraries
+ Xilinx Runtime library (XRT) is an open-source easy to
+ use software stack that facilitates management and usage of
+ field-programmable gate array (FPGA) / Adaptive Compute Acceleration
+ Platform (ACAP) devices. Users use familiar programming languages
+ like C/C++ or Python to write host code which uses XRT to interact
+ with FPGA/ACAP device. XRT exports well defined set of software APIs
+ that work across PCIe based datacenter platforms and ZYNQ UltraScale+
+ MPSoC/Versal ACAP based embedded platforms. XRT is a combination of
+ userspace and kernel driver components.
+ .
+ This package provides the runtime environment for xrt.
+
+Package: libxrt-dev
+Architecture: arm64 amd64
+Section: libdevel
+Multi-Arch: same
+Depends: ${misc:Depends}, ${shlibs:Depends}, libxrt1 (= ${binary:Version})
+Description: Xilinx Runtime (XRT) - development files
+ Xilinx Runtime library (XRT) is an open-source easy to
+ use software stack that facilitates management and usage of
+ field-programmable gate array (FPGA) / Adaptive Compute Acceleration
+ Platform (ACAP) devices. Users use familiar programming languages
+ like C/C++ or Python to write host code which uses XRT to interact
+ with FPGA/ACAP device. XRT exports well defined set of software APIs
+ that work across PCIe based datacenter platforms and ZYNQ UltraScale+
+ MPSoC/Versal ACAP based embedded platforms. XRT is a combination of
+ userspace and kernel driver components.
+ .
+ This package provides the development environment for xrt.
+
+Package: libxrt-utils
+Architecture: arm64 amd64
+Section: utils
+Depends: ${misc:Depends}, ${shlibs:Depends}, python3, libxrt1 (= ${binary:Version})
+Description: Xilinx Runtime (XRT) - runtime -- utilities
+ Xilinx Runtime library (XRT) is an open-source easy to
+ use software stack that facilitates management and usage of
+ field-programmable gate array (FPGA) / Adaptive Compute Acceleration
+ Platform (ACAP) devices. Users use familiar programming languages
+ like C/C++ or Python to write host code which uses XRT to interact
+ with FPGA/ACAP device. XRT exports well defined set of software APIs
+ that work across PCIe based datacenter platforms and ZYNQ UltraScale+
+ MPSoC/Versal ACAP based embedded platforms. XRT is a combination of
+ userspace and kernel driver components.
+ .
+ This package contains a utilities from the xrt project.

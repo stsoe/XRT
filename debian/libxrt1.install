@@ -1,0 +1,5 @@
+usr/lib/*/*.so.*
+usr/lib/*/xrt/*
+usr/lib/*/libaws_mpd_plugin.so
+usr/lib/*/libazure_mpd_plugin.so
+usr/lib/*/libcontainer_mpd_plugin.so

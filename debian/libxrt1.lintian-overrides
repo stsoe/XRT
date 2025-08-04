@@ -1,0 +1,6 @@
+# the installed .so does not contains the last part of the soname it confuses
+# lintian.
+lacks-unversioned-link-to-shared-library
+# private library
+package-name-doesnt-match-sonames
+shared-library-lacks-version

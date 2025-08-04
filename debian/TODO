@@ -1,0 +1,32 @@
+In no particular order -
+
+* x86 support
+
+  Upstream has out of the box support for x86 but there are some major
+  differences between an edge and a cloud build.
+
+  - install location
+  - PCIe based FPGA cards
+  - cloud provider support
+
+  Ideally, it would be good to be able to test some of this
+  functionality while enabling x86 package builds.
+
+* Edge DKMS
+
+  XRT sources have mechanism to include a DKMS driver (zocl) for
+  interfacing with the FPGA hardware on edge devices. Enabling the
+  drvier would remove the dependency on Xilinx kernel.
+
+* Runpath optimization
+
+  Upstream build files set up CMAKE_INSTALL_RPATH but these are based
+  on assumptions about install paths. There be efficiences to be
+  gained (but also just plain bugs that can be fixed) by adjusting the
+  dynamic library search paths for binaries and libraries.
+
+
+If you're interested in these features or any other features, please
+feel free to send a mail or open a bug against the package. As usual
+patches are welcome but also confirming a feature on hardware I don't
+have access to would be a great help.
