@@ -72,6 +72,11 @@ public:
     shared = 1
   };
 
+  /**
+   * Context identifier is unique to a context on the device.
+   */
+  using ctxid = uint32_t;
+
 public:
   /**
    * hw_context() - Constructor for empty context
@@ -231,6 +236,13 @@ public:
   void
   update_qos(const qos_type& qos);
   ///@endcond
+
+  /**
+   * get_id() - Return a unique identifier for this context
+   */
+  XRT_API_EXPORT
+  ctxid
+  get_id() const;
 
   /**
    * get_device() - Device from which context was created

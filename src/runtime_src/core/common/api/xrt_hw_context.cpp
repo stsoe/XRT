@@ -61,6 +61,15 @@ class hw_context_impl : public std::enable_shared_from_this<hw_context_impl>
     }
   }
 
+  xrt_core::hwctx_handle*
+  handle_or_error() const
+  {
+    if (m_hdl)
+      return m_hdl.get();
+
+    throw std::runtime_error("Context is not bound to a device");
+  }
+
 public:
   hw_context_impl(std::shared_ptr<xrt_core::device> device, const xrt::uuid& xclbin_id, cfg_param_type cfg_param)
     : m_core_device(std::move(device))
@@ -150,17 +159,24 @@ public:
     create_module_map(elf);
   }
 
+  // The context id is the slotidx
+  xrt::hw_context::ctxid
+  get_id() const
+  {
+    return handle_or_error()->get_slotidx();
+  }
+
   void
   update_qos(const qos_type& qos)
   {
-    m_hdl->update_qos(qos);
+    handle_or_error()->update_qos(qos);
   }
 
   void
   set_exclusive()
   {
     m_mode = xrt::hw_context::access_mode::exclusive;
-    m_hdl->update_access_mode(m_mode);
+    handle_or_error()->update_access_mode(m_mode);
   }
 
   const std::shared_ptr<xrt_core::device>&
@@ -355,6 +371,13 @@ hw_context::
 get_device() const
 {
   return xrt::device{get_handle()->get_core_device()};
+}
+
+hw_context::ctxid
+hw_context::
+get_id() const
+{
+  return get_handle()->get_id();
 }
 
 xrt::uuid
