@@ -17,6 +17,12 @@ elseif (NOT XRT_EDGE)
   set(AIEBU_COMPONENT ${XRT_BASE_COMPONENT})
   set(AIEBU_DEV_COMPONENT ${XRT_BASE_DEV_COMPONENT})
   set(AIEBU_UPSTREAM ${XRT_UPSTREAM})
+  # AIEBU should use XRT's version of ELFIO.  This can fail if AIEBU
+  # has been updated to include a newer version of ELFIO than XRT. In
+  # this case XRT itself must update its version of ELFIO minimum that
+  # of AIEBU.
+  set(AIEBU_ELFIO_SRC_DIR ${XRT_SOURCE_DIR}/runtime_src/core/common/elf)
+  set(AIEBU_AIE-RT_SRC_DIR ${XRT_SOURCE_DIR}/runtime_src/aie-rt)
   xrt_add_subdirectory(aiebu)
 else()
   message(WARNING "Edge device, build of submodule aiebu disabled")

@@ -80,11 +80,6 @@ else()
     set(AIERT_DIR ${CMAKE_CURRENT_BINARY_DIR}/aie-rt/driver/src)
     set(XAIENGINE_BUILD_SHARED OFF)
     xrt_add_subdirectory_disable_install_target(aie-rt/driver/src)
-    # This enables aiebu submodule use aie-rt from higher level
-    set(AIEBU_AIE_RT_BIN_DIR ${AIERT_DIR})
-    set(AIEBU_AIE_RT_HEADER_DIR ${AIERT_DIR}/include)
-    message("-- Exporting AIEBU_AIE_RT_BIN_DIR=${AIEBU_AIE_RT_BIN_DIR}")
-    message("-- Exporting AIEBU_AIE_RT_HEADER_DIR=${AIEBU_AIE_RT_HEADER_DIR}")
   endif()
 
   # Build Subdirectories
