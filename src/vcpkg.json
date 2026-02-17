@@ -1,0 +1,11 @@
+{
+  "name": "xrt",
+  "version": "0.1.0",
+  "description": "XRT Windows build dependencies (vcpkg manifest)",
+  "dependencies": [
+    "boost-filesystem",
+    "boost-program-options",
+    "gtest",
+    "opencl"
+  ]
+}
