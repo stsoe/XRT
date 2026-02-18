@@ -4,7 +4,11 @@
   "description": "XRT Windows build dependencies (vcpkg manifest)",
   "dependencies": [
     "boost-filesystem",
+    "boost-format",
+    "boost-interprocess",
     "boost-program-options",
+    "boost-property-tree",
+    "boost-regex",
     "gtest",
     "opencl"
   ]
