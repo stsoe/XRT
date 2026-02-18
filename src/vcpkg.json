@@ -9,6 +9,7 @@
     "boost-program-options",
     "boost-property-tree",
     "boost-regex",
+    "boost-uuid",
     "gtest",
     "opencl"
   ]
