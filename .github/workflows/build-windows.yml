@@ -10,8 +10,10 @@ on:
     branches: [master, main]
   workflow_dispatch:
 
+# Disable vcpkg NuGet binary cache; the Azure feed is often unreachable from GitHub runners.
+# Builds use source only; actions/cache below caches vcpkg/installed for faster reruns.
 env:
-  VCPKG_BINARY_SOURCES: 'clear;nuget,https://pkgs.dev.azure.com/vcpkg/public/_packaging/public/nuget/v3/index.json,readwrite'
+  VCPKG_BINARY_SOURCES: 'clear'
 
 jobs:
   build-windows:
