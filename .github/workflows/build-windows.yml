@@ -78,14 +78,15 @@ jobs:
 
       - name: Build (Release)
         run: |
-          $build = "${{ github.workspace }}\build\WRelease"
+          $build = "${{ github.workspace }}/build/WRelease"
           cmake --build $build --config Release --verbose
         shell: pwsh
 
       - name: Install (staging)
         run: |
-          $build = "${{ github.workspace }}\build\WRelease"
-          $prefix = "$build\xilinx\xrt"
+          # Use forward slashes to avoid cmake_install.cmake syntax errors (backslash escape sequences)
+          $build = "${{ github.workspace }}/build/WRelease"
+          $prefix = "${{ github.workspace }}/build/WRelease/xilinx/xrt"
           cmake --install $build --config Release --prefix $prefix --verbose
         shell: pwsh
 
