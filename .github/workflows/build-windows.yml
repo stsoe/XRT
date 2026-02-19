@@ -61,12 +61,13 @@ jobs:
 
       - name: Configure CMake (Release)
         run: |
-          # Use forward slashes so generated cmake_install.cmake has no backslash escape issues
-          $vcpkgRoot = "${{ github.workspace }}/vcpkg"
+          # github.workspace expands with backslashes on Windows; normalize to forward slashes for CMake
+          $ws = "${{ github.workspace }}" -replace '\\', '/'
+          $vcpkgRoot = "$ws/vcpkg"
           $triplet = "x64-windows"
           $kronos = "$vcpkgRoot/installed/$triplet"
-          $src = "${{ github.workspace }}/src"
-          $build = "${{ github.workspace }}/build/WRelease"
+          $src = "$ws/src"
+          $build = "$ws/build/WRelease"
           New-Item -ItemType Directory -Force -Path $build
           cmake -B $build -S $src `
             -G "Visual Studio 17 2022" -A x64 `
@@ -79,15 +80,16 @@ jobs:
 
       - name: Build (Release)
         run: |
-          $build = "${{ github.workspace }}/build/WRelease"
+          $ws = "${{ github.workspace }}" -replace '\\', '/'
+          $build = "$ws/build/WRelease"
           cmake --build $build --config Release --verbose
         shell: pwsh
 
       - name: Install (staging)
         run: |
-          # Use forward slashes to avoid cmake_install.cmake syntax errors (backslash escape sequences)
-          $build = "${{ github.workspace }}/build/WRelease"
-          $prefix = "${{ github.workspace }}/build/WRelease/xilinx/xrt"
+          $ws = "${{ github.workspace }}" -replace '\\', '/'
+          $build = "$ws/build/WRelease"
+          $prefix = "$ws/build/WRelease/xilinx/xrt"
           cmake --install $build --config Release --prefix $prefix --verbose
         shell: pwsh
 
