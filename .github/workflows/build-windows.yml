@@ -61,15 +61,16 @@ jobs:
 
       - name: Configure CMake (Release)
         run: |
-          $vcpkgRoot = "${{ github.workspace }}\vcpkg"
+          # Use forward slashes so generated cmake_install.cmake has no backslash escape issues
+          $vcpkgRoot = "${{ github.workspace }}/vcpkg"
           $triplet = "x64-windows"
-          $kronos = "$vcpkgRoot\installed\$triplet"
-          $src = "${{ github.workspace }}\src"
-          $build = "${{ github.workspace }}\build\WRelease"
+          $kronos = "$vcpkgRoot/installed/$triplet"
+          $src = "${{ github.workspace }}/src"
+          $build = "${{ github.workspace }}/build/WRelease"
           New-Item -ItemType Directory -Force -Path $build
           cmake -B $build -S $src `
             -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_TOOLCHAIN_FILE="$vcpkgRoot\scripts\buildsystems\vcpkg.cmake" `
+            -DCMAKE_TOOLCHAIN_FILE="$vcpkgRoot/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows `
             -DKHRONOS="$kronos" `
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON `
