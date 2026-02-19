@@ -65,7 +65,8 @@ jobs:
           $ws = "${{ github.workspace }}" -replace '\\', '/'
           $vcpkgRoot = "$ws/vcpkg"
           $triplet = "x64-windows"
-          $kronos = "$vcpkgRoot/installed/$triplet"
+          # vcpkg toolchain (manifest mode) installs to build/vcpkg_installed/<triplet>; OpenCL.dll is there
+          $kronos = "$ws/build/WRelease/vcpkg_installed/$triplet"
           $src = "$ws/src"
           $build = "$ws/build/WRelease"
           New-Item -ItemType Directory -Force -Path $build
