@@ -222,6 +222,7 @@ endif()
 if (WIN32 AND NOT DEFINED GTEST_ROOT)
   set(GTEST_ROOT "C:/Xilinx/XRT/ext")
 endif()
+
 find_package(GTest)
 
 if (GTEST_FOUND AND NOT XRT_SYSTEM_INSTALL)
