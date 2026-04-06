@@ -247,6 +247,9 @@ get(const std::string& path, const xartifacts::repo& repo)
 
 } // module_cache
 
+namespace runlist {
+} // runlist
+
 // class recipe - Runner recipe
 class recipe
 {
@@ -909,12 +912,13 @@ class recipe
   }; // class recipe::resources
 
 public:
-  // class execution - execution section of the recipe
-  class execution
+  // class graph - represent a recipe graph
+  //
+  class graph
   {
     class run
     {
-      // class argument - represents a execution::run argument
+      // class argument - represents a graph::run argument
       //
       // The argument refers to a recipe resource buffer.
       //
@@ -964,7 +968,7 @@ public:
           , m_argidx{j.at("argidx").get<int>()}
           , m_xrt_bo{create_xrt_bo(m_buffer, m_offset, m_size)}
         {
-            XRT_DEBUGF("recipe::execution::run::argument(json) (%s, %lu, %lu, %d) bound(%s)\n",
+            XRT_DEBUGF("recipe::graph::run::argument(json) (%s, %lu, %lu, %d) bound(%s)\n",
                      m_buffer.get_name().c_str(), m_offset, m_size, m_argidx,
                      m_xrt_bo ? "true" : "false");
         }
@@ -980,7 +984,7 @@ public:
           , m_argidx{other.m_argidx}                            // same argidx
           , m_xrt_bo{create_xrt_bo(m_buffer, m_offset, m_size)} // new xrt::bo, maybe null
         {
-            XRT_DEBUGF("recipe::execution::run::argument(other) (%s, %lu, %lu, %d) bound(%s)\n",
+            XRT_DEBUGF("recipe::graph::run::argument(other) (%s, %lu, %lu, %d) bound(%s)\n",
                      m_buffer.get_name().c_str(), m_offset, m_size, m_argidx,
                      m_xrt_bo ? "true" : "false");
         }
@@ -1000,7 +1004,7 @@ public:
         {
           return m_xrt_bo;
         }
-      }; // class recipe::execution::run::argument
+      }; // class recipe::graph::run::argument
         
       using run_type = std::variant<xrt::run, xrt_core::cpu::run>;
       using constant_type = std::variant<int, std::string>;
@@ -1152,7 +1156,7 @@ public:
         , m_args{create_and_set_args(resources, m_run, j.at("arguments"))}
         , m_constants{create_and_set_constant_args(m_run, j.value("constants", json::object()))}
       {
-        XRT_DEBUGF("recipe::execution::run(%s)\n", m_name.c_str());
+        XRT_DEBUGF("recipe::graph::run(%s)\n", m_name.c_str());
       }
 
       // Create a run from another run using argument resources
@@ -1166,7 +1170,7 @@ public:
         , m_args{create_and_set_args(resources, m_run, other.m_args)}
         , m_constants{create_and_set_constant_args(m_run, other.m_constants)}
       {
-        XRT_DEBUGF("recipe::execution::run(other) name(%s)\n", m_name.c_str());
+        XRT_DEBUGF("recipe::graph::run(other) name(%s)\n", m_name.c_str());
       }
 
       bool
@@ -1193,7 +1197,7 @@ public:
         if (std::holds_alternative<xrt::run>(m_run))
           return std::get<xrt::run>(m_run);
 
-        throw recipe_error("recipe::execution::run::get_xrt_run() called on a CPU run");
+        throw recipe_error("recipe::graph::run::get_xrt_run() called on a CPU run");
       }
 
       xrt_core::cpu::run
@@ -1202,7 +1206,7 @@ public:
         if (std::holds_alternative<xrt_core::cpu::run>(m_run))
           return std::get<xrt_core::cpu::run>(m_run);
 
-        throw recipe_error("recipe::execution::run::get_cpu_run() called on a NPU run");
+        throw recipe_error("recipe::graph::run::get_cpu_run() called on a NPU run");
       }
 
       void
@@ -1216,7 +1220,7 @@ public:
         arg.bind(bo);
         std::visit(set_arg_visitor{arg.m_argidx, arg.get_xrt_bo()}, m_run);
       }
-    }; // class recipe::execution::run
+    }; // class recipe::graph::run
 
     // struct runlist - a list of runs to execute
     // Need to support CPU and NPU runlists.  The CPU runlist will be
@@ -1228,7 +1232,7 @@ public:
       virtual void add(const run& run) = 0;
       virtual void execute(size_t) = 0;
       virtual void wait(bool poll) {}
-    };
+    }; // recipe::graph::runlist
 
     struct cpu_runlist : runlist
     {
@@ -1247,7 +1251,7 @@ public:
         for (auto& run : m_runs)
           run.execute();
       }
-    };
+    }; // recipe::graph::cpu_runlist
 
     // The NPU runlist starts out as a std::vector<xrt::run> but
     // morphs to an xrt::runlist if number of runs exceeds
@@ -1270,7 +1274,7 @@ public:
 
         vrl()
         {
-          XRT_DEBUGF("recipe::execution creating std::vector<xrt::run>\n");
+          XRT_DEBUGF("recipe::graph creating std::vector<xrt::run>\n");
         }
 
         const std::vector<xrt::run>&
@@ -1306,7 +1310,7 @@ public:
               (*itr).wait2();
           }
         }
-      }; // vrl
+      }; // recipe::graph::vrl
 
       // xrt::runlist implementation of NPU runlist
       struct xrl : impl
@@ -1316,7 +1320,7 @@ public:
         explicit xrl(const xrt::hw_context& hwctx)
           : m_rl{hwctx}
         {
-          XRT_DEBUGF("recipe::execution creating xrt::runlist\n");
+          XRT_DEBUGF("recipe::graph creating xrt::runlist\n");
         }
 
         void
@@ -1348,7 +1352,7 @@ public:
           else
             m_rl.wait();
         }
-      }; // xrl
+      }; // recipe::graph::xrl
 
       std::unique_ptr<impl> m_impl;
       xrt::hw_context m_hwctx;
@@ -1367,7 +1371,7 @@ public:
         // morph to xrt::runlist when threshold reached
         XRT_DEBUGF("(count, threshold)=(%d, %d)\n", m_count, m_runlist_threshold);
         if (++m_count == m_runlist_threshold) {
-          XRT_DEBUGF("recipe::execution switching to xrt::runlist\n");
+          XRT_DEBUGF("recipe::graph switching to xrt::runlist\n");
           auto xrlist = std::make_unique<xrl>(m_hwctx);
           xrlist->add(m_impl->get_rl());
           m_impl = std::move(xrlist);
@@ -1386,7 +1390,7 @@ public:
       {
         m_impl->wait(poll);
       }
-    }; // npu_runlist
+    }; // recipe::graph::npu_runlist
 
     std::vector<run> m_runs;
     std::exception_ptr m_eptr;
@@ -1445,7 +1449,7 @@ public:
 
       return runs;
     }
-
+    
     // create_runs() - create a vector of runs from existing runs
     // A run object is a variant, the new run objects are created
     // from the variant matching the type of the existing run.
@@ -1460,19 +1464,19 @@ public:
     }
 
   public:
-    // execution() - create an execution object from a property tree
-    // The runs are created from the property tree and either xrt::run
+    // graph() - create a graph object from a json tree
+    // The runs are created from the json tree as either xrt::run
     // or cpu::run objects.
-    execution(const resources& resources, const json& j, size_t runlist_threshold)
-      : m_runs{create_runs(resources, j.at("runs"))}
+    graph(const resources& resources, const json& graph_object, size_t runlist_threshold)
+      : m_runs{create_runs(resources, graph_object.at("runs"))}
       , m_runlist_threshold{runlist_threshold}
       , m_runlists{create_runlists(resources, m_runs, m_runlist_threshold)}
       , m_queue{m_runlists.size() > 1 ? std::make_unique<xrt::queue>() : nullptr}
     {}
 
-    // execution() - create an execution object from existing runs
+    // graph() - create a graph object from existing runs
     // New run objects are created from the existing runs.
-    execution(const resources& resources, const execution& other)
+    graph(const resources& resources, const graph& other)
       : m_runs{create_runs(resources, other.m_runs)}
       , m_runlists{create_runlists(resources, m_runs, other.m_runlist_threshold)}
       , m_queue{m_runlists.size() > 1 ? std::make_unique<xrt::queue>() : nullptr}
@@ -1567,14 +1571,25 @@ public:
       rpt["resources"]["runlist"] = m_runlist_threshold;
       return rpt;
     }
-  }; // class recipe::execution
+    
+  }; // recipe::graph
 
+private:
   xrt::device m_device;
 
   json m_recipe_json;
   header m_header;
   resources m_resources;
-  execution m_execution;
+  graph m_graph;
+
+  static const json&
+  get_graph_json(const json& recipe)
+  {
+    if (recipe.contains("graph"))
+      return recipe.at("graph");
+    else
+      return recipe.at("execution"); // legacy
+  }
 
 public:
   recipe(xrt::device device, json recipe,
@@ -1584,7 +1599,7 @@ public:
     , m_recipe_json(std::move(recipe)) // paren required, else initialized as array
     , m_header{m_recipe_json.value("header", json::object()), repo}
     , m_resources{m_device, m_header, qos, m_recipe_json.at("resources"), repo}
-    , m_execution{m_resources, m_recipe_json.at("execution"), runlist_threshold }
+    , m_graph{m_resources, get_graph_json(m_recipe_json), runlist_threshold }
   {}
 
   recipe(xrt::device device, json recipe, const xartifacts::repo& repo)
@@ -1597,22 +1612,22 @@ public:
 
   recipe(const recipe&) = default;
 
-  execution*
-  get_execution()
+  graph*
+  get_graph()
   {
-    return &m_execution;
+    return &m_graph;
   }
 
-  execution
-  clone_execution() const
+  graph
+  clone_graph() const
   {
-    return {m_resources, m_execution};
+    return {m_resources, m_graph};
   }
 
   size_t
   num_runs() const
   {
-    return m_execution.num_runs();
+    return m_graph.num_runs();
   }
 
   void
@@ -1631,14 +1646,14 @@ public:
   bind(const std::string& name, const xrt::bo& bo)
   {
     XRT_DEBUGF("recipe::bind(%s) bo::size(%d)\n", name.c_str(), bo.size());
-    m_execution.bind(name, bo);
+    m_graph.bind(name, bo);
   }
 
   void
   execute(size_t iteration)
   {
     XRT_DEBUGF("recipe::execute(%d)\n", iteration);
-    m_execution.execute(iteration);
+    m_graph.execute(iteration);
   }
 
   void
@@ -1651,7 +1666,7 @@ public:
   wait()
   {
     XRT_DEBUGF("recipe::wait()\n");
-    m_execution.wait(false);
+    m_graph.wait(false);
   }
 
   json
@@ -1660,7 +1675,7 @@ public:
     json rpt = json::object();
     insert_json_object(rpt, m_header.get_report());
     insert_json_object(rpt, m_resources.get_report());
-    insert_json_object(rpt, m_execution.get_report());
+    insert_json_object(rpt, m_graph.get_report());
     rpt["resources"]["runs"] = num_runs();
     return rpt;
   }
@@ -2048,21 +2063,21 @@ class profile
     // Unconditioally bind all resources buffers to the recipe
     // execution.  This function is used for cloned recipe executions.
     void
-    bind(recipe::execution& re)
+    bind(recipe::graph& rg)
     {
       for (auto& [name, node] : m_bindings)
-        re.bind(name, m_xrt_bos.at(name));
+        rg.bind(name, m_xrt_bos.at(name));
     }
 
     // Binding buffers can be re-bound before iterating
     // execution of the recipe.  Re-binding is guarded by 
     // execution::iteration::bind and bindings::rebind
     void
-    rebind(recipe::execution& re)
+    rebind(recipe::graph& rg)
     {
       for (auto& [name, node] : m_bindings)
         if (node.value<bool>("rebind", false))
-          re.bind(name, m_xrt_bos.at(name));
+          rg.bind(name, m_xrt_bos.at(name));
     }
   }; // class profile::bindings
 
@@ -2118,17 +2133,17 @@ class profile
     {
       profile* m_profile;
 
-      recipe::execution* m_base;
-      std::vector<recipe::execution> m_copies;
+      recipe::graph* m_base;
+      std::vector<recipe::graph> m_copies;
 
       bool m_poll = false;
 
-      static std::vector<recipe::execution>
-      create_execution_copies(recipe* recipe, size_t depth)
+      static std::vector<recipe::graph>
+      create_graph_copies(recipe* recipe, size_t depth)
       {
-        std::vector<recipe::execution> copies;
+        std::vector<recipe::graph> copies;
         for (size_t i = 1; i < depth; ++i)
-          copies.emplace_back(recipe->clone_execution());
+          copies.emplace_back(recipe->clone_graph());
 
         return copies;
       }
@@ -2136,8 +2151,8 @@ class profile
     public:
       executor(profile* profile, recipe* recipe, size_t depth, bool poll)
         : m_profile{profile}
-        , m_base{recipe->get_execution()}
-        , m_copies{create_execution_copies(recipe, depth)}
+        , m_base{recipe->get_graph()}
+        , m_copies{create_graph_copies(recipe, depth)}
         , m_poll(poll)
       {
         // Bind buffers to the recipe execution objects prior to
@@ -2171,31 +2186,31 @@ class profile
         }
       }
 
-      // Bind buffers to recipe and to recipe::execution copies.
+      // Bind buffers to recipe and to recipe::graph copies.
       void
       bind()
       {
         m_profile->bind(*m_base);
-        for (auto& exec : m_copies)
-          m_profile->bind(exec);
+        for (auto& g : m_copies)
+          m_profile->bind(g);
       }
 
-      // Re-bind buffers to recipe and to recipe::execution copies.
+      // Re-bind buffers to recipe and to recipe::graph copies.
       void
       rebind()
       {
         m_profile->rebind(*m_base);
-        for (auto& exec : m_copies)
-          m_profile->rebind(exec);
+        for (auto& g : m_copies)
+          m_profile->rebind(g);
       }
 
-      // Wait for recipe execution completion and copies
+      // Wait for recipe graph completion and copies
       void
       wait()
       {
         m_base->wait(m_poll);
-        for (auto& exec : m_copies)
-          exec.wait(m_poll);
+        for (auto& g : m_copies)
+          g.wait(m_poll);
       }
     }; // class profile::execution::executor
 
@@ -2399,15 +2414,15 @@ private:
   std::vector<std::unique_ptr<execution>> m_executions;
 
   void
-  bind(recipe::execution& exec)
+  bind(recipe::graph& g)
   {
-    m_bindings.bind(exec);
+    m_bindings.bind(g);
   }
 
   void
-  rebind(recipe::execution& exec)
+  rebind(recipe::graph& g)
   {
-    m_bindings.bind(exec);
+    m_bindings.bind(g);
   }
 
   void
