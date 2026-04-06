@@ -44,6 +44,7 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <set>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -477,6 +478,13 @@ class recipe
       get_name() const
       {
         return m_name;
+      }
+
+      // For recipe graph dependency edges: no run-to-run edge on these types.
+      bool
+      is_graph_host_only_input_type() const
+      {
+        return m_type == type::input || m_type == type::weight || m_type == type::debug;
       }
 
       void
@@ -1173,6 +1181,17 @@ public:
         XRT_DEBUGF("recipe::graph::run(other) name(%s)\n", m_name.c_str());
       }
 
+      // get_buffer_arg_names() - Compute and return list of arg buffer names
+      std::vector<std::string>
+      get_buffer_arg_names() const
+      {
+        std::vector<std::string> names;
+        names.reserve(m_args.size());
+        for (const auto& pr : m_args)
+          names.push_back(pr.first);
+        return names;
+      }
+
       bool
       is_npu_run() const
       {
@@ -1464,11 +1483,103 @@ public:
     }
 
   public:
+    // topo_sort_runs() - Topological sort of runs
+    //
+    // Topological order of runs from buffer edges: for each buffer
+    // shared by multiple runs, the earliest run in recipe order is
+    // the producer; edges go producer -> other users (including when
+    // an output from one run is read as an argument by a later
+    // run). Host input buffers (input/weight/debug) induce no edges.
+    //
+    // Cursor generated, I'm not convinced this is the most efficient
+    static std::vector<run>
+    topo_sort_runs(const resources& resources, std::vector<run> runs)
+    {
+      const size_t n = runs.size();
+      if (n <= 1)
+        return runs;
+
+      // For union of all run arguments, map buffer name to run index
+      // that uses the argument.  This is our graph edges.
+      std::map<std::string, std::vector<size_t>> buf_users;
+      for (size_t i = 0; i < n; ++i) {
+        for (const auto& nm : runs[i].get_buffer_arg_names())
+          buf_users[nm].push_back(i);
+      }
+
+      // Create adjacency list for for all graph edges
+      std::vector<std::vector<size_t>> adj(n);
+      std::vector<std::vector<size_t>> radj(n);
+
+      // Lamda to add an edge to adjacency matrix
+      auto add_edge = [&](size_t u, size_t v) {
+        if (u == v)
+          return;
+        
+        auto& out = adj[u];
+        if (std::find(out.begin(), out.end(), v) == out.end())
+          out.push_back(v);
+        
+        auto& in = radj[v];
+        if (std::find(in.begin(), in.end(), u) == in.end())
+          in.push_back(u);
+      };
+
+      // Iterate graph edges and update adjacency matrix
+      for (auto& [bname, users] : buf_users) {
+        const auto& buf = resources.get_buffer_or_error(bname);
+        if (buf.is_graph_host_only_input_type())
+          continue;
+
+        if (users.size() <= 1)
+          continue;
+
+        std::sort(users.begin(), users.end());
+        const size_t w = users.front();
+        for (size_t k = 1; k < users.size(); ++k)
+          add_edge(w, users[k]);
+      }
+
+      // Compute in-degree for nodes
+      std::vector<size_t> indeg(n);
+      for (size_t i = 0; i < n; ++i)
+        indeg[i] = radj[i].size();
+
+      // Ready nodes are those with 0 in-degree
+      std::set<size_t> ready;
+      for (size_t i = 0; i < n; ++i) {
+        if (indeg[i] == 0)
+          ready.insert(i);
+      }
+
+      std::vector<size_t> order;
+      order.reserve(n);
+      while (!ready.empty()) {
+        const size_t u = *ready.begin();
+        ready.erase(ready.begin());
+        order.push_back(u);
+        for (auto v : adj[u]) {
+          if (--indeg[v] == 0)
+            ready.insert(v);
+        }
+      }
+
+      if (order.size() != n)
+        throw recipe_error("recipe graph: dependency cycle in runs (buffer arguments)");
+
+      std::vector<run> sorted_runs;
+      sorted_runs.reserve(n);
+      for (auto idx : order)
+        sorted_runs.push_back(std::move(runs[idx]));
+
+      return sorted_runs;
+    }
+
     // graph() - create a graph object from a json tree
     // The runs are created from the json tree as either xrt::run
     // or cpu::run objects.
     graph(const resources& resources, const json& graph_object, size_t runlist_threshold)
-      : m_runs{create_runs(resources, graph_object.at("runs"))}
+      : m_runs{topo_sort_runs(resources, create_runs(resources, graph_object.at("runs")))}
       , m_runlist_threshold{runlist_threshold}
       , m_runlists{create_runlists(resources, m_runs, m_runlist_threshold)}
       , m_queue{m_runlists.size() > 1 ? std::make_unique<xrt::queue>() : nullptr}
