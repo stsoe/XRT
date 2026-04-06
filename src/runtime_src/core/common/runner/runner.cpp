@@ -1014,7 +1014,7 @@ public:
         }
       }; // class recipe::graph::run::argument
         
-      using run_type = std::variant<xrt::run, xrt_core::cpu::run>;
+      using run_type = std::variant<xrt::run, xrt_core::cpu::run, xrt::fence>;
       using constant_type = std::variant<int, std::string>;
       std::string m_name;
       run_type m_run;
@@ -1028,6 +1028,7 @@ public:
         set_arg_visitor(int idx, ArgType&& arg) : m_idx(idx), m_value(std::move(arg)) {}
         void operator() (xrt::run& run) const { run.set_arg(m_idx, m_value); }
         void operator() (xrt_core::cpu::run& run) const { run.set_arg(m_idx, m_value); }
+        void operator() (xrt::fence& fence) const { }
       };
 
       struct copy_visitor {
@@ -1035,9 +1036,11 @@ public:
         const resources& m_res;
         copy_visitor(const std::string& nm, const resources& res) : m_name{nm}, m_res{res} {}
         run_type operator() (const xrt::run&)
-        { return xrt::run{m_res.get_xrt_kernel_or_error(m_name)}; };
+        { return xrt::run{m_res.get_xrt_kernel_or_error(m_name)}; }
         run_type operator() (const xrt_core::cpu::run&)
-        { return xrt_core::cpu::run{m_res.get_cpu_function_or_error(m_name)}; };
+        { return xrt_core::cpu::run{m_res.get_cpu_function_or_error(m_name)}; }
+        run_type operator() (const xrt::fence&)
+        { return xrt::fence{m_res.get_device(), xrt::fence::access_mode::local }; }
       };
 
       static std::map<std::string, argument>
