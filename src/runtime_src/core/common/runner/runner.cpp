@@ -29,6 +29,7 @@
 #include "core/include/xrt/experimental/xrt_aie.h"
 #include "core/include/xrt/experimental/xrt_elf.h"
 #include "core/include/xrt/experimental/xrt_ext.h"
+#include "core/include/xrt/experimental/xrt_fence.h"
 #include "core/include/xrt/experimental/xrt_kernel.h"
 #include "core/include/xrt/experimental/xrt_module.h"
 #include "core/include/xrt/experimental/xrt_queue.h"
@@ -1013,8 +1014,11 @@ public:
           return m_xrt_bo;
         }
       }; // class recipe::graph::run::argument
+
+      struct wait : public xrt::fence { using xrt::fence::fence; };
+      struct signal : public xrt::fence { using xrt::fence::fence; };
         
-      using run_type = std::variant<xrt::run, xrt_core::cpu::run, xrt::fence>;
+      using run_type = std::variant<xrt::run, xrt_core::cpu::run, wait, signal>;
       using constant_type = std::variant<int, std::string>;
       std::string m_name;
       run_type m_run;
@@ -1039,8 +1043,10 @@ public:
         { return xrt::run{m_res.get_xrt_kernel_or_error(m_name)}; }
         run_type operator() (const xrt_core::cpu::run&)
         { return xrt_core::cpu::run{m_res.get_cpu_function_or_error(m_name)}; }
-        run_type operator() (const xrt::fence&)
-        { return xrt::fence{m_res.get_device(), xrt::fence::access_mode::local }; }
+        run_type operator() (const wait&)
+        { return wait{m_res.get_device(), xrt::fence::access_mode::local }; }
+        run_type operator() (const signal&)
+        { return signal{m_res.get_device(), xrt::fence::access_mode::local }; }
       };
 
       static std::map<std::string, argument>
