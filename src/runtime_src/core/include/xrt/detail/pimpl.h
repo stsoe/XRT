@@ -67,6 +67,18 @@ public:
     return handle < rhs.handle;
   }
 
+  bool
+  operator == (const pimpl& rhs) const
+  {
+    return handle == rhs.handle;
+  }
+
+  bool
+  operator != (const pimpl& rhs) const
+  {
+    return handle != rhs.handle;
+  }
+
 protected:
   std::shared_ptr<ImplType> handle;
 };

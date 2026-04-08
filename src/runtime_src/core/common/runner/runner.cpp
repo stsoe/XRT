@@ -484,7 +484,7 @@ class recipe
 
       // For recipe graph dependency edges: no run-to-run edge on these types.
       bool
-      is_graph_host_only_input_type() const
+      is_graph_input() const
       {
         return m_type == type::input || m_type == type::weight || m_type == type::debug;
       }
@@ -1017,12 +1017,12 @@ public:
       }; // class recipe::graph::run::argument
 
     public:
-      struct signal : public xrt::fence
+      struct signal_node : public xrt::fence
       {
         using xrt::fence::fence;
         xrt_core::hw_queue m_hwqueue;
 
-        signal(const xrt::device& device, const xrt::hw_context& hwctx)
+        signal_node(const xrt::device& device, const xrt::hw_context& hwctx)
           : xrt::fence{device, xrt::fence::access_mode::local}
           , m_hwqueue{hwctx} // guaranteed shared queue per hwctx
         {}
@@ -1034,13 +1034,18 @@ public:
         }
       };
 
-      struct wait : public xrt::fence
+      struct wait_node : public xrt::fence
       {
         using xrt::fence::fence;
         xrt_core::hw_queue m_hwqueue;
 
-        wait(const xrt::device& device, const xrt::hw_context& hwctx)
+        wait_node(const xrt::device& device, const xrt::hw_context& hwctx)
           : xrt::fence{device, xrt::fence::access_mode::local}
+          , m_hwqueue{hwctx} // guaranteed shared queue per hwctx
+        {}
+
+        wait_node(const signal_node& sig, const xrt::hw_context& hwctx)
+          : xrt::fence(sig)
           , m_hwqueue{hwctx} // guaranteed shared queue per hwctx
         {}
 
@@ -1051,8 +1056,11 @@ public:
         }
       };
 
+      using run_node = xrt::run;
+      using cpu_node = xrt_core::cpu::run;
+
     private:
-      using run_type = std::variant<xrt::run, xrt_core::cpu::run, wait, signal>;
+      using run_type = std::variant<run_node, cpu_node, wait_node, signal_node>;
       using constant_type = std::variant<int, std::string>;
       std::string m_name;
       run_type m_run;
@@ -1067,8 +1075,8 @@ public:
         set_arg_visitor(int idx, ArgType&& arg) : m_idx(idx), m_value(std::move(arg)) {}
         void operator() (xrt::run& run) const { run.set_arg(m_idx, m_value); }
         void operator() (xrt_core::cpu::run& run) const { run.set_arg(m_idx, m_value); }
-        void operator() (wait&) const { }
-        void operator() (signal&) const { }
+        void operator() (wait_node&) const { }
+        void operator() (signal_node&) const { }
       };
 
       struct copy_visitor {
@@ -1079,10 +1087,10 @@ public:
         { return xrt::run{m_res.get_xrt_kernel_or_error(m_name)}; }
         run_type operator() (const xrt_core::cpu::run&)
         { return xrt_core::cpu::run{m_res.get_cpu_function_or_error(m_name)}; }
-        run_type operator() (const wait& w)
-        { return wait{w}; }
-        run_type operator() (const signal& s)
-        { return signal{s}; }
+        run_type operator() (const wait_node& w)
+        { return wait_node{w}; }
+        run_type operator() (const signal_node& s)
+        { return signal_node{s}; }
       };
 
       static std::map<std::string, argument>
@@ -1222,6 +1230,14 @@ public:
         XRT_DEBUGF("recipe::graph::run(%s)\n", m_name.c_str());
       }
 
+      run(signal_node s)
+        : m_run(std::move(s))
+      {}
+
+      run(wait_node w)
+        : m_run(std::move(w))
+      {}
+
       // Create a run from another run using argument resources
       // The ctor creates a new xrt::run or cpu::run from other, these
       // runs refer to resources per argument resources.  Arguments
@@ -1282,6 +1298,24 @@ public:
           return std::get<xrt_core::cpu::run>(m_run);
 
         throw recipe_error("recipe::graph::run::get_cpu_run() called on a NPU run");
+      }
+
+      const wait_node&
+      get_wait_node() const
+      {
+        if (std::holds_alternative<wait_node>(m_run))
+          return std::get<wait_node>(m_run);
+
+        throw recipe_error("recipe::graph::run::get_wait_node() no such node");
+      }
+
+      const signal_node&
+      get_signal_node() const
+      {
+        if (std::holds_alternative<signal_node>(m_run))
+          return std::get<signal_node>(m_run);
+
+        throw recipe_error("recipe::graph::run::get_signal_node() no such node");
       }
 
       void
@@ -1436,8 +1470,16 @@ public:
         }
       }; // recipe::graph::xrl
 
-#if 1
-      struct graph_runlist : impl
+      // Graph implementation of the NPU runlist
+      //
+      // The lifetime of the graph runs (m_runs) is tied to the
+      // lifetime of the recipe::graph, which is the duration of the
+      // runner object itself.
+      //
+      // The graph runlist can hold any of the variants run_node,
+      // wait_node, and signal_node, but cpu_node is not supported.
+      // The run nodes can belong to any hwctx.
+      struct grl : impl
       {
         std::vector<run*> m_runs;
 
@@ -1453,13 +1495,13 @@ public:
           struct execute_visitor {
             void operator() (xrt::run& run) const { run.start(); }
             void operator() (xrt_core::cpu::run&) const {}
-            void operator() (graph::run::signal& fence) const { fence.submit(); }
-            void operator() (graph::run::wait& fence) const   { fence.submit(); }
+            void operator() (graph::run::signal_node& fence) const { fence.submit(); }
+            void operator() (graph::run::wait_node& fence) const   { fence.submit(); }
           };
 
           execute_visitor ev{};
 
-          for (auto run : m_runs)
+          for (auto& run : m_runs)
             std::visit(ev, run->get_run_variant());
         }
 
@@ -1477,8 +1519,8 @@ public:
                 run.wait2();
             }
             void operator() (xrt_core::cpu::run&) const {}
-            void operator() (graph::run::signal& fence) const {}
-            void operator() (graph::run::wait& fence)   const {}
+            void operator() (graph::run::signal_node& fence) const {}
+            void operator() (graph::run::wait_node& fence)   const {}
           };
 
           wait_visitor wv{poll};
@@ -1489,15 +1531,25 @@ public:
             std::visit(wv, (*itr)->get_run_variant());
         }
       };
-#endif
 
       std::unique_ptr<impl> m_impl;
       size_t m_runlist_threshold;
       uint32_t m_count = 0;
 
-      npu_runlist(size_t rlt)
-        : m_impl(std::make_unique<vrl>())
-        , m_runlist_threshold{rlt}
+      static std::unique_ptr<impl>
+      create_impl(bool graph)
+      {
+        // Ternary doesn't work on different return types even
+        // as base is the same
+        if (graph)
+          return std::make_unique<grl>();
+
+        return std::make_unique<vrl>();  // vrl can morph to xrl
+      }
+
+      npu_runlist(size_t rlt, bool graph)
+        : m_impl(create_impl(graph))
+        , m_runlist_threshold{graph ? 0 : rlt}
       {}
 
       void
@@ -1527,7 +1579,6 @@ public:
       }
     }; // recipe::graph::npu_runlist
 
-
     std::vector<run> m_runs;
     std::exception_ptr m_eptr;
     size_t m_runlist_threshold = default_runlist_threshold;
@@ -1535,10 +1586,31 @@ public:
     std::unique_ptr<xrt::queue> m_queue;      // Queue that executes the runlists in sequence
     std::vector<xrt::queue::event> m_events;  // Events that signal complettion of a runlist
 
+    static bool
+    is_graph(const std::vector<run>& runs)
+    {
+      xrt::hw_context hwctx;
+      auto it = std::find_if(runs.begin(), runs.end(),
+        [&](const run& r) {
+          auto ctx = r.get_xrt_hwctx();
+          if (!ctx)
+            return false;
+
+          if (hwctx)
+            return (ctx != hwctx);
+
+          hwctx = ctx;
+          return false;
+        });
+
+      return it != runs.end();
+    }
+
     static std::vector<std::unique_ptr<runlist>>
     create_runlists(const resources& resources, const std::vector<run>& runs, size_t rlt)
     {
       std::vector<std::unique_ptr<runlist>> runlists;
+      bool graph = is_graph(runs);
 
       // A CPU or NPU runlist is created for each contiguous sequence
       // of CPU runs or NPU runs. The runlist is inserted into a
@@ -1547,12 +1619,12 @@ public:
       npu_runlist* nrl = nullptr;
       cpu_runlist* crl = nullptr;
       for (const auto& run : runs) {
-        if (run.is_npu_run()) {
+        if (!run.is_cpu_run()) {
           if (crl)
             crl = nullptr;
 
           if (!nrl) {
-            auto rl = std::make_unique<npu_runlist>(rlt);
+            auto rl = std::make_unique<npu_runlist>(rlt, graph);
             nrl = rl.get();
             runlists.push_back(std::move(rl));
           }
@@ -1600,99 +1672,18 @@ public:
     }
 
   public:
-    // topo_sort_runs() - Topological sort of runs
+    // amend_runs() - Amend runs with fences
     //
-    // Topological order of runs from buffer edges: for each buffer
-    // shared by multiple runs, the earliest run in recipe order is
-    // the producer; edges go producer -> other users (including when
-    // an output from one run is read as an argument by a later
-    // run). Host input buffers (input/weight/debug) induce no edges.
+    // @param runs Runs to amend, by-value to move into return or
+    //   optimize by compiler
     //
-    // Cursor generated, I'm not convinced this is the most efficient
-    static std::vector<run>
-    topo_sort_runs(const resources& resources, std::vector<run> runs)
-    {
-      const size_t n = runs.size();
-      if (n <= 1)
-        return runs;
-
-      // For union of all run arguments, map buffer name to run index
-      // that uses the argument.  This is our graph edges.
-      std::map<std::string, std::vector<size_t>> buf_users;
-      for (size_t i = 0; i < n; ++i) {
-        for (const auto& nm : runs[i].get_buffer_arg_names())
-          buf_users[nm].push_back(i);
-      }
-
-      // Create adjacency list for for all graph edges
-      std::vector<std::vector<size_t>> adj(n);
-      std::vector<std::vector<size_t>> radj(n);
-
-      // Lamda to add an edge to adjacency matrix
-      auto add_edge = [&](size_t u, size_t v) {
-        if (u == v)
-          return;
-        
-        auto& out = adj[u];
-        if (std::find(out.begin(), out.end(), v) == out.end())
-          out.push_back(v);
-        
-        auto& in = radj[v];
-        if (std::find(in.begin(), in.end(), u) == in.end())
-          in.push_back(u);
-      };
-
-      // Iterate graph edges and update adjacency matrix
-      for (auto& [bname, users] : buf_users) {
-        const auto& buf = resources.get_buffer_or_error(bname);
-        if (buf.is_graph_host_only_input_type())
-          continue;
-
-        if (users.size() <= 1)
-          continue;
-
-        std::sort(users.begin(), users.end());
-        const size_t w = users.front();
-        for (size_t k = 1; k < users.size(); ++k)
-          add_edge(w, users[k]);
-      }
-
-      // Compute in-degree for nodes
-      std::vector<size_t> indeg(n);
-      for (size_t i = 0; i < n; ++i)
-        indeg[i] = radj[i].size();
-
-      // Ready nodes are those with 0 in-degree
-      std::set<size_t> ready;
-      for (size_t i = 0; i < n; ++i) {
-        if (indeg[i] == 0)
-          ready.insert(i);
-      }
-
-      std::vector<size_t> order;
-      order.reserve(n);
-      while (!ready.empty()) {
-        const size_t u = *ready.begin();
-        ready.erase(ready.begin());
-        order.push_back(u);
-        for (auto v : adj[u]) {
-          if (--indeg[v] == 0)
-            ready.insert(v);
-        }
-      }
-
-      if (order.size() != n)
-        throw recipe_error("recipe graph: dependency cycle in runs (buffer arguments)");
-
-      std::vector<run> sorted_runs;
-      sorted_runs.reserve(n);
-      for (auto idx : order)
-        sorted_runs.push_back(std::move(runs[idx]));
-
-      return sorted_runs;
-    }
-
-#if 0
+    // Insert signals after each run that must complete before some
+    // other run can proceed. Inserts waits before each run that must
+    // wait on a signal.
+    //
+    // Requires recipe.graph.runs[] in topological order: for every
+    // shared buffer, the producer run appears before all consumer runs
+    // so signal_index[src] is set before any wait references it.
     static std::vector<run>
     amend_runs(const resources& resources, std::vector<run> runs)
     {
@@ -1700,95 +1691,82 @@ public:
       if (n <= 1)
         return runs;
 
-      // For union of all run arguments, map buffer name to run index
-      // that uses the argument.  This is our graph edges. First entry
-      // in users vector is the first run that uses the buffers,
-      // guaranteed by runs being topoloigcally sorted
+      // Map buffer name -> run indices that reference it (recipe
+      // order).  users.front() is considered the producer for that
+      // buffer.
       std::map<std::string, std::vector<size_t>> buf_users;
       for (size_t i = 0; i < n; ++i) {
         for (const auto& nm : runs[i].get_buffer_arg_names())
           buf_users[nm].push_back(i);
       }
 
-      // Create adjacency list for for all graph edges that
-      // originate in one hwctx and feeds into another
-      std::vector<std::vector<size_t>> adj(n);
-      std::vector<std::vector<size_t>> radj(n);
-
-      // Lamda to add an edge to adjacency matrix
-      auto add_edge = [&](size_t u, size_t v) {
-        if (u == v)
-          return;
-        
-        auto& out = adj[u];
-        if (std::find(out.begin(), out.end(), v) == out.end())
-          out.push_back(v);
-        
-        auto& in = radj[v];
-        if (std::find(in.begin(), in.end(), u) == in.end())
-          in.push_back(u);
-      };
-
-      // Iterate graph edges and update adjacency matrix
+      // Create signal fence objects for each source run that shares
+      // buffer with a sink node.  At most one signal per source run;
+      // sink_waits record which sources a sink depend on.
+      std::vector<run::signal_node> signals(n);
+      std::vector<std::set<size_t>> sink_waits(n);
       for (auto& [bname, users] : buf_users) {
         const auto& buf = resources.get_buffer_or_error(bname);
-        if (buf.is_graph_host_only_input_type())
+        if (buf.is_graph_input())
           continue;
 
         if (users.size() <= 1)
           continue;
 
-        size_t source = users.front();
-        auto source_hwctx = runs[source].get_xrt_hw_context();  // TODO: handle not npu case
-        if (!source_hwctx)
-          continue;
-            
-        for (size_t sink = 1; sink < users.size(); ++sink) {
-          if (auto sink_hwctx = runs[sink].get_xrt_hw_context(); sink_hwctx != source_hwctx)
-            add_edge(source, users[sink]);
-      }
+        const size_t src_idx = users.front();
+        const auto& src_hwctx = runs[src_idx].get_xrt_hwctx();
 
-      // Compute in-degree for nodes
-      std::vector<size_t> indeg(n);
-      for (size_t i = 0; i < n; ++i)
-        indeg[i] = radj[i].size();
+        // If any user of 'buf' is in a different hwctx, then create a
+        // signal object to be inserted after producer (src) of the
+        // buffer.  Make a note that the consumer (sink) must wait for
+        // the signal.
+        for (size_t j = 1; j < users.size(); ++j) {
+          const size_t sink_run = users[j];
+          if (runs[sink_run].get_xrt_hwctx() == src_hwctx)
+            continue;
 
-      // Ready nodes are those with 0 in-degree
-      std::set<size_t> ready;
-      for (size_t i = 0; i < n; ++i) {
-        if (indeg[i] == 0)
-          ready.insert(i);
-      }
+          if (!signals[src_idx]) {
+            XRT_PRINTF("recipe::graph::amend_runs() creating signal for run[%zu]\n", src_idx);
+            signals[src_idx] = run::signal_node{resources.get_device(), runs[src_idx].get_xrt_hwctx()};
+          }
 
-      std::vector<size_t> order;
-      order.reserve(n);
-      while (!ready.empty()) {
-        const size_t u = *ready.begin();
-        ready.erase(ready.begin());
-        order.push_back(u);
-        for (auto v : adj[u]) {
-          if (--indeg[v] == 0)
-            ready.insert(v);
+          sink_waits[sink_run].insert(src_idx);
         }
       }
 
-      if (order.size() != n)
-        throw recipe_error("recipe graph: dependency cycle in runs (buffer arguments)");
+      // Amend the runs, inserting fence signals after producing runs
+      // and fence waits before consuming runs.
+      std::vector<run> amended_runs;
+      std::vector<size_t> signal_index(n);
+      for (size_t i = 0; i < n; ++i) {
+        // Create wait fence objects for corresponding signals The
+        // toplogical order of the runs, guarantee that signals have
+        // been inserted before waits are processed and inserted.
+        for (auto src_idx : sink_waits[i]) {
+          const auto& signal_run = amended_runs[signal_index[src_idx]];
+          XRT_PRINTF("recipe::graph::amend_runs() inserting wait[%zu] before run[%zu]\n", src_idx, i);
+          amended_runs.push_back(
+            run::wait_node{signal_run.get_signal_node(), runs[i].get_xrt_hwctx()});
+        }
 
-      std::vector<run> sorted_runs;
-      sorted_runs.reserve(n);
-      for (auto idx : order)
-        sorted_runs.push_back(std::move(runs[idx]));
+        amended_runs.push_back(std::move(runs[i]));
 
-      return sorted_runs;
+        // Insert signals after run
+        if (signals[i]) {
+          XRT_PRINTF("recipe::graph::amend_runs() inserting signal after run[%zu]\n", i);
+          amended_runs.push_back(std::move(signals[i]));
+          signal_index[i] = amended_runs.size() - 1;
+        }
+      }
+
+      return amended_runs;
     }
-#endif
 
     // graph() - create a graph object from a json tree
     // The runs are created from the json tree as either xrt::run
     // or cpu::run objects.
     graph(const resources& resources, const json& graph_object, size_t runlist_threshold)
-      : m_runs{topo_sort_runs(resources, create_runs(resources, graph_object.at("runs")))}
+      : m_runs{amend_runs(resources, create_runs(resources, graph_object.at("runs")))}
       , m_runlist_threshold{runlist_threshold}
       , m_runlists{create_runlists(resources, m_runs, m_runlist_threshold)}
       , m_queue{m_runlists.size() > 1 ? std::make_unique<xrt::queue>() : nullptr}
@@ -1905,10 +1883,9 @@ private:
   static const json&
   get_graph_json(const json& recipe)
   {
-    if (recipe.contains("graph"))
-      return recipe.at("graph");
-    else
-      return recipe.at("execution"); // legacy
+    return recipe.contains("graph")
+      ? recipe.at("graph")
+      : recipe.at("execution"); // legacy
   }
 
 public:
