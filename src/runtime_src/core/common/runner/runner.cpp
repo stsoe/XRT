@@ -19,6 +19,7 @@
 #include "core/common/unistd.h"
 #include "core/common/api/bo_int.h"
 #include "core/common/api/hw_context_int.h"
+#include "core/common/api/hw_queue.h"
 #include "core/common/api/kernel_int.h"
 #include "core/include/xrt/xrt_bo.h"
 #include "core/include/xrt/xrt_device.h"
@@ -1015,13 +1016,47 @@ public:
         }
       }; // class recipe::graph::run::argument
 
-      struct wait : public xrt::fence { using xrt::fence::fence; };
-      struct signal : public xrt::fence { using xrt::fence::fence; };
-        
+    public:
+      struct signal : public xrt::fence
+      {
+        using xrt::fence::fence;
+        xrt_core::hw_queue m_hwqueue;
+
+        signal(const xrt::device& device, const xrt::hw_context& hwctx)
+          : xrt::fence{device, xrt::fence::access_mode::local}
+          , m_hwqueue{hwctx} // guaranteed shared queue per hwctx
+        {}
+
+        void
+        submit()
+        {
+          m_hwqueue.submit_signal(*this);
+        }
+      };
+
+      struct wait : public xrt::fence
+      {
+        using xrt::fence::fence;
+        xrt_core::hw_queue m_hwqueue;
+
+        wait(const xrt::device& device, const xrt::hw_context& hwctx)
+          : xrt::fence{device, xrt::fence::access_mode::local}
+          , m_hwqueue{hwctx} // guaranteed shared queue per hwctx
+        {}
+
+        void
+        submit()
+        {
+          m_hwqueue.submit_wait(*this);
+        }
+      };
+
+    private:
       using run_type = std::variant<xrt::run, xrt_core::cpu::run, wait, signal>;
       using constant_type = std::variant<int, std::string>;
       std::string m_name;
       run_type m_run;
+      xrt::hw_context m_hwctx;
       std::map<std::string, argument> m_args;
       std::map<int, constant_type> m_constants;
 
@@ -1032,7 +1067,8 @@ public:
         set_arg_visitor(int idx, ArgType&& arg) : m_idx(idx), m_value(std::move(arg)) {}
         void operator() (xrt::run& run) const { run.set_arg(m_idx, m_value); }
         void operator() (xrt_core::cpu::run& run) const { run.set_arg(m_idx, m_value); }
-        void operator() (xrt::fence& fence) const { }
+        void operator() (wait&) const { }
+        void operator() (signal&) const { }
       };
 
       struct copy_visitor {
@@ -1043,10 +1079,10 @@ public:
         { return xrt::run{m_res.get_xrt_kernel_or_error(m_name)}; }
         run_type operator() (const xrt_core::cpu::run&)
         { return xrt_core::cpu::run{m_res.get_cpu_function_or_error(m_name)}; }
-        run_type operator() (const wait&)
-        { return wait{m_res.get_device(), xrt::fence::access_mode::local }; }
-        run_type operator() (const signal&)
-        { return signal{m_res.get_device(), xrt::fence::access_mode::local }; }
+        run_type operator() (const wait& w)
+        { return wait{w}; }
+        run_type operator() (const signal& s)
+        { return signal{s}; }
       };
 
       static std::map<std::string, argument>
@@ -1164,12 +1200,22 @@ public:
         return std::visit(copy_visitor{other.m_name, resources}, other.m_run);
       }
 
+      static xrt::hw_context
+      init_xrt_hwctx(const run_type& run)
+      {
+        if (std::holds_alternative<xrt::run>(run))
+          return xrt_core::kernel_int::get_hw_ctx(std::get<xrt::run>(run));
+
+        return {};
+      }
+
     public:
       run(const resources& resources, const json& j)
         : m_name{j.contains("kernel")
                  ? j.at("kernel").get<std::string>()
                  : j.at("name").get<std::string>()} // deprecated
         , m_run{create_run(resources, j)}
+        , m_hwctx{init_xrt_hwctx(m_run)}
         , m_args{create_and_set_args(resources, m_run, j.at("arguments"))}
         , m_constants{create_and_set_constant_args(m_run, j.value("constants", json::object()))}
       {
@@ -1184,6 +1230,7 @@ public:
       run(const resources& resources, const run& other)
         : m_name{other.m_name}
         , m_run{create_run(resources, other)}
+        , m_hwctx{other.m_hwctx}
         , m_args{create_and_set_args(resources, m_run, other.m_args)}
         , m_constants{create_and_set_constant_args(m_run, other.m_constants)}
       {
@@ -1216,7 +1263,7 @@ public:
       xrt::hw_context
       get_xrt_hwctx() const
       {
-        return xrt_core::kernel_int::get_hw_ctx(get_xrt_run());
+        return m_hwctx;
       }
 
       xrt::run
@@ -1248,6 +1295,13 @@ public:
         arg.bind(bo);
         std::visit(set_arg_visitor{arg.m_argidx, arg.get_xrt_bo()}, m_run);
       }
+
+      run_type& 
+      get_run_variant()
+      {
+        return m_run;
+      }
+
     }; // class recipe::graph::run
 
     // struct runlist - a list of runs to execute
@@ -1382,14 +1436,67 @@ public:
         }
       }; // recipe::graph::xrl
 
+#if 1
+      struct graph_runlist : impl
+      {
+        std::vector<run*> m_runs;
+
+        void
+        add(const run& r) override
+        {
+          m_runs.push_back(const_cast<run*>(&r));
+        }
+
+        void
+        execute(size_t) override
+        {
+          struct execute_visitor {
+            void operator() (xrt::run& run) const { run.start(); }
+            void operator() (xrt_core::cpu::run&) const {}
+            void operator() (graph::run::signal& fence) const { fence.submit(); }
+            void operator() (graph::run::wait& fence) const   { fence.submit(); }
+          };
+
+          execute_visitor ev{};
+
+          for (auto run : m_runs)
+            std::visit(ev, run->get_run_variant());
+        }
+
+        void
+        wait(bool poll) override
+        {
+          struct wait_visitor {
+            bool poll;
+
+            void operator() (xrt::run& run) const
+            {
+              if (poll)
+                while (run.state() < ERT_CMD_STATE_COMPLETED) ;
+              else
+                run.wait2();
+            }
+            void operator() (xrt_core::cpu::run&) const {}
+            void operator() (graph::run::signal& fence) const {}
+            void operator() (graph::run::wait& fence)   const {}
+          };
+
+          wait_visitor wv{poll};
+
+          // While waiting for last to complete is enough, all runs
+          // must be marked completed
+          for (auto itr = m_runs.rbegin(); itr != m_runs.rend(); ++itr)
+            std::visit(wv, (*itr)->get_run_variant());
+        }
+      };
+#endif
+
       std::unique_ptr<impl> m_impl;
-      xrt::hw_context m_hwctx;
       size_t m_runlist_threshold;
       uint32_t m_count = 0;
 
-      npu_runlist(xrt::hw_context hwctx, size_t rlt)
+      npu_runlist(size_t rlt)
         : m_impl(std::make_unique<vrl>())
-        , m_hwctx(std::move(hwctx))
         , m_runlist_threshold{rlt}
       {}
 
@@ -1400,7 +1507,7 @@ public:
         XRT_DEBUGF("(count, threshold)=(%d, %d)\n", m_count, m_runlist_threshold);
         if (++m_count == m_runlist_threshold) {
           XRT_DEBUGF("recipe::graph switching to xrt::runlist\n");
-          auto xrlist = std::make_unique<xrl>(m_hwctx);
+          auto xrlist = std::make_unique<xrl>(run.get_xrt_hwctx());
           xrlist->add(m_impl->get_rl());
           m_impl = std::move(xrlist);
         }
@@ -1419,6 +1526,7 @@ public:
         m_impl->wait(poll);
       }
     }; // recipe::graph::npu_runlist
+
 
     std::vector<run> m_runs;
     std::exception_ptr m_eptr;
@@ -1444,7 +1552,7 @@ public:
             crl = nullptr;
 
           if (!nrl) {
-            auto rl = std::make_unique<npu_runlist>(run.get_xrt_hwctx(), rlt);
+            auto rl = std::make_unique<npu_runlist>(rlt);
             nrl = rl.get();
             runlists.push_back(std::move(rl));
           }
@@ -1583,6 +1691,98 @@ public:
 
       return sorted_runs;
     }
+
+#if 0
+    static std::vector<run>
+    amend_runs(const resources& resources, std::vector<run> runs)
+    {
+      const size_t n = runs.size();
+      if (n <= 1)
+        return runs;
+
+      // For union of all run arguments, map buffer name to run index
+      // that uses the argument.  This is our graph edges. First entry
+      // in users vector is the first run that uses the buffers,
+      // guaranteed by runs being topoloigcally sorted
+      std::map<std::string, std::vector<size_t>> buf_users;
+      for (size_t i = 0; i < n; ++i) {
+        for (const auto& nm : runs[i].get_buffer_arg_names())
+          buf_users[nm].push_back(i);
+      }
+
+      // Create adjacency list for for all graph edges that
+      // originate in one hwctx and feeds into another
+      std::vector<std::vector<size_t>> adj(n);
+      std::vector<std::vector<size_t>> radj(n);
+
+      // Lamda to add an edge to adjacency matrix
+      auto add_edge = [&](size_t u, size_t v) {
+        if (u == v)
+          return;
+        
+        auto& out = adj[u];
+        if (std::find(out.begin(), out.end(), v) == out.end())
+          out.push_back(v);
+        
+        auto& in = radj[v];
+        if (std::find(in.begin(), in.end(), u) == in.end())
+          in.push_back(u);
+      };
+
+      // Iterate graph edges and update adjacency matrix
+      for (auto& [bname, users] : buf_users) {
+        const auto& buf = resources.get_buffer_or_error(bname);
+        if (buf.is_graph_host_only_input_type())
+          continue;
+
+        if (users.size() <= 1)
+          continue;
+
+        size_t source = users.front();
+        auto source_hwctx = runs[source].get_xrt_hw_context();  // TODO: handle not npu case
+        if (!source_hwctx)
+          continue;
+            
+        for (size_t sink = 1; sink < users.size(); ++sink) {
+          if (auto sink_hwctx = runs[sink].get_xrt_hw_context(); sink_hwctx != source_hwctx)
+            add_edge(source, users[sink]);
+      }
+
+      // Compute in-degree for nodes
+      std::vector<size_t> indeg(n);
+      for (size_t i = 0; i < n; ++i)
+        indeg[i] = radj[i].size();
+
+      // Ready nodes are those with 0 in-degree
+      std::set<size_t> ready;
+      for (size_t i = 0; i < n; ++i) {
+        if (indeg[i] == 0)
+          ready.insert(i);
+      }
+
+      std::vector<size_t> order;
+      order.reserve(n);
+      while (!ready.empty()) {
+        const size_t u = *ready.begin();
+        ready.erase(ready.begin());
+        order.push_back(u);
+        for (auto v : adj[u]) {
+          if (--indeg[v] == 0)
+            ready.insert(v);
+        }
+      }
+
+      if (order.size() != n)
+        throw recipe_error("recipe graph: dependency cycle in runs (buffer arguments)");
+
+      std::vector<run> sorted_runs;
+      sorted_runs.reserve(n);
+      for (auto idx : order)
+        sorted_runs.push_back(std::move(runs[idx]));
+
+      return sorted_runs;
+    }
+#endif
 
     // graph() - create a graph object from a json tree
     // The runs are created from the json tree as either xrt::run
