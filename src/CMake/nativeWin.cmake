@@ -12,6 +12,9 @@
 # pdb install dir
 set (CMAKE_PDB_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/symbols")
 
+# static libraries are not released on Windows.
+set (XRT_INSTALL_STATIC_LIBRARY OFF)
+
 include(CMake/components.cmake)
 
 # Boost Libraries
